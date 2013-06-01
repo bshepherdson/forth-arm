@@ -1,6 +1,4 @@
 .section .text
-.globl _start
-_start:
 
 ; Register outline:
 ; sp/r13 is used as the data stack pointer.
@@ -1763,6 +1761,9 @@ NEXT
 return_stack_top:
 .word 0
 
+
+.globl _start
+_start:
 startup:
 ; Set up some globals
 ldr r0, =return_stack_top

@@ -79,7 +79,8 @@ SWAP:
 .word code_SWAP
 code_SWAP:
 pop {r0,r1}
-push {r1,r0}
+push {r1}
+push {r0}
 NEXT
 
 name_DUP:

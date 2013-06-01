@@ -1,26 +1,28 @@
-.section .text
+.text
 
-; Register outline:
-; sp/r13 is used as the data stack pointer.
-; r12 is used for the return stack pointer. (J in DCPU-16)
-; r11 is used for the next Forth word. (I in DCPU-16)
+/*
+Register outline
+sp/r13 is used as the data stack pointer.
+r12 is used for the return stack pointer. (J in DCPU-16)
+r11 is used for the next Forth word. (I in DCPU-16)
 
-; Some macros for common parts of the Forth system.
+Some macros for common parts of the Forth system.
+*/
 
-; NEXT macro: Completes this Forth word and moves on to the next one
+/* NEXT macro Completes this Forth word and moves on to the next one */
 .macro NEXT
 ldr r0, [r11]
 add r11, #4
 ldr pc, [r0]
 .endm
 
-; PUSHRSP macro: Needs to store the current Forth word (R11) to the position pointed to by RSP (R12), and decrement RSP.
-; This is used to push the execution state onto the return stack.
+/* PUSHRSP macro: Needs to store the current Forth word (R11) to the position pointed to by RSP (R12), and decrement RSP. */
+/* This is used to push the execution state onto the return stack. */
 .macro PUSHRSP
 stmdb r12!, {r11}
 .endm
 
-; POPRSP macro: Retrieves the value from the top of the return stack into r11 (next Forth word).
+/* POPRSP macro: Retrieves the value from the top of the return stack into r11 (next Forth word). */
 .macro POPRSP
 ldmia r12!, {r11}
 .endm
@@ -32,12 +34,12 @@ ldmia r12!, {r11}
 .set F_HIDDEN_AND_LENMASK, 0x3f
 
 
-; Actual entry point
+/* Actual entry point */
 b startup
 
 
 
-; DOCOL. The interpreter code for running functions written in Forth. Expects r0 to be the codeword address!
+/* DOCOL. The interpreter code for running functions written in Forth. Expects r0 to be the codeword address! */
 DOCOL:
 PUSHRSP
 add r0, #1
@@ -45,15 +47,17 @@ mov r11, r0
 NEXT
 
 
-; Forth word definitions.
-; The link pointer is the first word after the name_FOO label.
-; It points at the name_BAR of the wod before it, or 0 for the last in the chain.
+/*
+Forth word definitions.
+The link pointer is the first word after the name_FOO label.
+It points at the name_BAR of the wod before it, or 0 for the last in the chain.
 
-; The structure of a Forth word is as follows:
-; 0 - link pointer, points to previous word, or 0.
-; 4 - size byte - specifies the size of the word's name in bytes
-; 5 - start of word... (no 0 terminator)
-; N - code pointer. word-aligned.
+The structure of a Forth word is as follows:
+0 - link pointer, points to previous word, or 0.
+4 - size byte - specifies the size of the word's name in bytes
+5 - start of word... (no 0 terminator)
+N - code pointer. word-aligned.
+*/
 
 name_DROP:
 .word 0
@@ -286,8 +290,8 @@ mul r0, r0, r1
 push {r0}
 NEXT
 
-; No integer division instructions on the ARM. Can use floating point and convert back, or Euclid's algorithm.
-; Leaving unimplemented for now.
+/* No integer division instructions on the ARM. Can use floating point and convert back, or Euclid's algorithm. */
+/* Leaving unimplemented for now. */
 
 name_SHL:
 .word name_MUL
@@ -302,7 +306,7 @@ lsl r0, r1, r0
 push {r0}
 NEXT
 
-; LOGICAL shift right
+/* LOGICAL shift right */
 name_SHR:
 .word name_SHL
 .byte 2
@@ -318,7 +322,7 @@ NEXT
 
 
 
-; Following Jonesforth and breaking the ANS standard by returning 0 and 1, not 0 and 0xffffffff
+/* Following Jonesforth and breaking the ANS standard by returning 0 and 1, not 0 and 0xffffffff */
 name_EQU:
 .word name_SHR
 .byte 1
@@ -840,7 +844,7 @@ NEXT
 
 
 
-; Return stack words
+/* Return stack words */
 
 name_TOR:
 .word name_F_LENMASK
@@ -935,14 +939,14 @@ NEXT
 
 
 
-; Syscalls and other constants
+/* Syscalls and other constants */
 .set __NR_read, 3
 .set __NR_write, 4
 
 .set stdin, 1
 .set stdout, 2
 
-; Input and output
+/* Input and output */
 
 name_KEY:
 .word name_DSPSTORE
@@ -955,13 +959,13 @@ code_KEY:
 bl _key
 push {r0}
 NEXT
-; TODO - Local echo?
+/* TODO - Local echo? */
 
 key_buffer:
 .byte
 
-; No input, returns a character in r0
-; Clobbers r0-r2 + r7 + lr
+/* No input, returns a character in r0 */
+/* Clobbers r0-r2 + r7 + lr */
 _key:
 mov r0, #stdin
 ldr r1, =key_buffer
@@ -986,7 +990,7 @@ bl _emit
 NEXT
 
 
-; Clobbers r0-r2, and r7
+/* Clobbers r0-r2, and r7 */
 _emit:
 push {lr}
 ldr r1, =key_buffer
@@ -1011,8 +1015,8 @@ push {r1,r0}
 NEXT
 
 
-; Returns the buffer address in r0 and the length in r1
-; Clobbers r0-r2, r6, r7, and lr.
+/* Returns the buffer address in r0 and the length in r1 */
+/* Clobbers r0-r2, r6, r7, and lr. */
 _word:
 push {lr}
 bl _key
@@ -1027,7 +1031,7 @@ beq _word
 cmp r0, #0x09 ; tap, keep searching
 beq _word
 
-; If we got down here, found a real letter.
+/* If we got down here, found a real letter. */
 ldr r6, =_word_buffer
 _word_main:
 strb r0, {r6}
@@ -1051,15 +1055,17 @@ sub r1, r6, r0 ; r1 now holds the length.
 pop {pc}
 
 
-; Handle backspace
-; Bump the pointer back by two so it'll overwrite the previous good letter and then be set to overwrite the bad one.
-; Kind of a hack, but it works.
+/*
+Handle backspace
+Bump the pointer back by two so it'll overwrite the previous good letter and then be set to overwrite the bad one.
+Kind of a hack, but it works.
+*/
 _word_backspace:
 sub r6, r6, #2
 ldr r0, {r6}
 b _word_main
 
-; And the code to skip past a comment:
+/* And the code to skip past a comment: */
 _word_comment:
 bl _key
 cmp r0, #0x0a ; newline, end of comment
@@ -1087,8 +1093,8 @@ push {r2,r0} ; unparsed chars, number
 NEXT
 
 
-; Expects r2 to be the length and r3 the start address of the string.
-; Clobbers r0-r3 and returns the number in r0 and the number of unparsed characters in r3.
+/* Expects r2 to be the length and r3 the start address of the string. */
+/* Clobbers r0-r3 and returns the number in r0 and the number of unparsed characters in r3. */
 _number:
 mov r0, #0
 mov r0, r1
@@ -1099,14 +1105,14 @@ cmp r2, #0 ; length 0 is an error. returns 0, I guess.
 ldr r4, =var_BASE
 ldr r4, {r4}
 
-; Check if the first character is '-'
+/* Check if the first character is '-' */
 ldrb r1, {r3}
 add r3, r3, #1
 push {r0} ; Push a 0 to signal positive.
 cmp r1, #0x2d
   bne _number_check_digit ; Not -, so it's just the first number.
 
-; If it is negative:
+/* If it is negative: */
 pop {r0} ; Pop the 0
 push {r1} ; Push the 0x2d, nonzero signals negative.
 sub r2, r2, #1 ; Decrement the length
@@ -1114,13 +1120,13 @@ sub r2, r2, #1 ; Decrement the length
 cmp r2, #0
   bne _number_loop ; If C is nonzero, jump over error handler.
 
-; C is 0, the string was just '-'
+/* C is 0, the string was just '-' */
 pop {r1} ; Remove the negation flag from the stack.
 mov r2, #1 ; Unparsed characters = 1
 bx lr
 
 
-; Loop, reading digits
+/* Loop, reading digits */
 _number_loop:
 mul r0, r0, r4 ; r0 *= BASE
 ldrb r1, {r3} ; Get next character
@@ -1134,11 +1140,11 @@ cmp r1, #'9'
 cmp r1, #'A'
   blt _number_end
 
-; If we made it here, it's a letter-digit
+/* If we made it here, it's a letter-digit */
 sub r1, r1, 8 ; 65-57 = 8, turns 'A' into '9' + 1
 
 _number_found_digit:
-; Adjust to be the actual number
+/* Adjust to be the actual number */
 sub r1, r1, #0x30
 
 cmp r1, r4 ; Check that it's < BASE
@@ -1157,7 +1163,7 @@ pop {r1} ; Grab the negativity flag we pushed earlier.
 cmp r1, #0
   beq _number_return ; positive, just return.
 
-; Negate the number (2's complement)
+/* Negate the number (2's complement) */
 mvn r3, #0
 eor r0, r0, r3
 add r0, r0, #1
@@ -1168,7 +1174,7 @@ bx lr
 
 
 
-; Dictionary lookup
+/* Dictionary lookup */
 
 name_FIND:
 .word name_NUMBER
@@ -1184,9 +1190,11 @@ push {r0} ; address of dictionary entry, or 0.
 NEXT
 
 
-; Expects the length in r2, address in r3.
-; Returns the address of the dictionary entry in r0.
-; Clobbers r0-r3
+/*
+Expects the length in r2, address in r3.
+Returns the address of the dictionary entry in r0.
+Clobbers r0-r3
+*/
 _find:
 
 ldr r4, =var_LATEST
@@ -1196,9 +1204,11 @@ _find_loop:
 cmp r4, #0
   beq _find_failed ; NULL pointer, reached the end.
 
-; Check the length of the word.
-; Note that if the F_HIDDEN flag is set on the word, then by a bit of trickery this
-; won't find the word, since the length appears to be wrong.
+/*
+Check the length of the word.
+Note that if the F_HIDDEN flag is set on the word, then by a bit of trickery this
+won't find the word, since the length appears to be wrong.
+*/
 mov r0, #0
 add r4, r4, #4 ; Advance to the flags/length field.
 ldrb r1, {r4} ; Grab that field.
@@ -1207,10 +1217,12 @@ and r1, r1, #F_HIDDEN_AND_LENMASK
 cmp r1, r2 ; Check length against target length
   bne _find_follow_link
 
-; Same length, so now compare in detail.
-; r2 holds the length, use it to loop.
-; Use r0 and r1 for the characters.
-; r5 is the index we're comparing.
+/*
+Same length, so now compare in detail.
+r2 holds the length, use it to loop.
+Use r0 and r1 for the characters.
+r5 is the index we're comparing.
+*/
 
 mov r5, #0
 _find_compare_loop:
@@ -1259,9 +1271,11 @@ push {r3}
 NEXT
 
 
-; Expects a dictionary block address in r3.
-; Returns address of codeword in r3.
-; Clobbers r0, r3
+/*
+Expects a dictionary block address in r3.
+Returns address of codeword in r3.
+Clobbers r0, r3
+*/
 _tcfa:
 mov r0, #0
 add r3, r3, #4 ; skip over link pointer, now points to length
@@ -1271,7 +1285,7 @@ add r3, r3, r0 ; Move it ahead to the last letter
 add r3, r3, #4 ; One more to the codeword-ish
 mvn r0, #3
 and r3, r3, r0 ; Mask off the last two bits, to align.
-; r3 is now the codeword
+/* r3 is now the codeword */
 bx lr
 
 
@@ -1291,7 +1305,7 @@ NEXT
 
 
 
-; Compilation and defining
+/* Compilation and defining */
 
 name_CREATE:
 .word name_TDFA
@@ -1303,7 +1317,7 @@ CREATE:
 code_CREATE:
 pop {r2,r1} ; length from the top, address of the name underneath
 
-; Store the link pointer.
+/* Store the link pointer. */
 ldr r3, =var_HERE
 ldr r3, {r3}
 ldr r0, =var_LATEST
@@ -1314,7 +1328,7 @@ ldr r4, =var_LATEST
 str r3, {r4} ; And write the new HERE into LATEST
 add r3, r3, #4 ; Jump over the link pointer.
 
-; Length byte and the word itself need storing.
+/* Length byte and the word itself need storing. */
 strb r2, {r3} ; store the length byte
 add r3, r3, #1 ; Move to the start of the string.
 
@@ -1328,14 +1342,16 @@ sub r2, r2, #1
 cmp r2, #0
   bgt _create_name_loop
 
-; Move HERE to point to after the block
-; New value of HERE is in r3, but not aligned.
-; Align it:
+/*
+Move HERE to point to after the block
+New value of HERE is in r3, but not aligned.
+Align it:
+*/
 add r3, r3, #3
 mvn r5, #3
 and r3, r3, r5
 
-; And then store it
+/* And then store it */
 ldr r1, =var_HERE
 str r3, {r1}
 NEXT
@@ -1395,21 +1411,21 @@ name_COLON:
 .align
 COLON:
 .word DOCOL
-; Get the name of the new word.
+/* Get the name of the new word. */
 .word WORD
-; Create the header
+/* Create the header */
 .word CREATE
-; Append the codeword, DOCOL
+/* Append the codeword, DOCOL */
 .word LIT
 .word DOCOL
 .word COMMA
-; Make the word hidden
+/* Make the word hidden */
 .word LATEST
 .word FETCH
 .word HIDDEN
-; Back to compile mode
+/* Back to compile mode */
 .word RBRAC
-; Return
+/* Return */
 .word EXIT
 
 
@@ -1420,15 +1436,15 @@ name_SEMICOLON:
 .align
 SEMICOLON:
 .word DOCOL
-; Append EXIT so the word will return.
+/* Append EXIT so the word will return. */
 .word LIT
 .word EXIT
 .word COMMA
-; Toggle hidden flag to unhide the word.
+/* Toggle hidden flag to unhide the word. */
 .word LATEST
 .word FETCH
 .word HIDDEN
-; Return the immediate mode
+/* Return the immediate mode */
 .word LBRAC
 .word EXIT
 
@@ -1474,11 +1490,11 @@ name_HIDE:
 .align
 HIDE:
 .word DOCOL
-; Get the word after HIDE
+/* Get the word after HIDE */
 .word WORD
-; Look it up in the dictionary
+/* Look it up in the dictionary */
 .word FIND
-; Set the flag
+/* Set the flag */
 .word HIDDEN
 .word EXIT
 
@@ -1495,14 +1511,16 @@ ldr r0, {r11} ; Get the address of the next word.
 add r11, r11, #4 ; Skip it.
 push {r0} ; Push the address
 NEXT
-; TODO - This definition only works in compiled code.
-; According to the jonesforth commentary, TICK can be written
-; with WORD, FIND and >CFA so that it'll run in immediate mode too.
+/*
+TODO - This definition only works in compiled code.
+According to the jonesforth commentary, TICK can be written
+with WORD, FIND and >CFA so that it'll run in immediate mode too.
+*/
 
 
 
 
-; Branching primitives
+/* Branching primitives */
 
 name_BRANCH:
 .word name_TICK
@@ -1515,7 +1533,7 @@ code_BRANCH:
 _branch_inner:
 ldr r0, {r11} ; Get the value at I
 add r11, r11, r0 ; And offset by it, since it's the branch amount.
-; Beautiful and cunning.
+/* Beautiful and cunning. */
 NEXT
 
 
@@ -1531,13 +1549,13 @@ pop {r0} ; Get the flag
 cmp r0, #0
   beq code_BRANCH
 
-; Otherwise skip over the offset
+/* Otherwise skip over the offset */
 add r11, r11, #4
 NEXT
 
 
 
-; Literal strings
+/* Literal strings */
 name_LITSTRING:
 .word name_ZBRANCH
 .byte 9
@@ -1550,7 +1568,7 @@ ldr r0, {r11} ; Get the length of the string from the next word
 add r11, r11, #4 ; And skip over it
 push {r0,r11} ; Push the length (r0) and the address of the start of the string (r11)
 add r11, r11, r0 ; Skip past the string
-; and align
+/* and align */
 add r11, r11, #3
 mvn r0, #3
 and r11, r11, r0
@@ -1598,7 +1616,7 @@ QUIT:
 .word INTERPRET
 .word BRANCH
 .word -8
-; Deliberately no EXIT call here
+/* Deliberately no EXIT call here */
 
 
 name_INTERPRET:
@@ -1612,12 +1630,12 @@ code_INTERPRET:
 
 bl _word ; r0 has the address, r1 the length
 
-; Not a literal number (at least not yet)
+/* Not a literal number (at least not yet) */
 ldr r2, =interpret_is_lit
 ldr r3, #0
 str r3, {r2}
 
-; Adjust for the differences between my FIND and WORD. TODO: Clean this up.
+/* Adjust for the differences between my FIND and WORD. TODO: Clean this up. */
 mov r2, r1
 mov r3, r0
 mov r9, r1 ; Save r1
@@ -1627,29 +1645,29 @@ mov r1, r9 ; And restore
 cmp r0, #0
   beq _interpret_not_in_dict
 
-; In the dictionary. Check if it's an IMMEDIATE codeword
+/* In the dictionary. Check if it's an IMMEDIATE codeword */
 add r2, r0, #4 ; r2 is the address of the dictionary header's length byte
 ldrb r9, {r2} ; Set aside the actual value of that word
 
-; _TCFA expects the address in r3
+/* _TCFA expects the address in r3 */
 mov r3, r0
 bl _tcfa
 mov r0, r3 ; Move the address of the codeword into r0
 
-; Now r3 points at the codeword
+/* Now r3 points at the codeword */
 and r2, r9, #F_IMMED ; r2 holds the and result
 cmp r2, #0
   bgt _interpret_execute ; Jump straight to executing
 b _interpret_compile_check
 
 _interpret_not_in_dict:
-; Not in the dictionary, so assume it's a literal number.
+/* Not in the dictionary, so assume it's a literal number. */
 ldr r9, =interpret_is_lit
 mov r8, #1
 str r8, {r9}
 
-; _NUMBER expects the length in r2 and the address in r3.
-; It returns the number in r0 and the number unparsed in r2.
+/* _NUMBER expects the length in r2 and the address in r3. */
+/* It returns the number in r0 and the number unparsed in r2. */
 mov r2, r1 ; The length was in r1, now in r2
 bl _number
 
@@ -1660,14 +1678,14 @@ mov r1, r0
 ldr r0, =LIT ; Set the word to LIT
 
 _interpret_compile_check:
-; Are we compiling or executing?
+/* Are we compiling or executing? */
 
 ldr r4, =var_STATE
 ldr r4, {r4}
 cmp r4, #0
   beq _interpret_execute ; Executing, so jump there
 
-; Compiling. Append the word to the current dictionary definition.
+/* Compiling. Append the word to the current dictionary definition. */
 bl _comma ; The word lives in r0, which is what _comma wants.
 
 ldr r9, =interpret_is_lit
@@ -1675,36 +1693,38 @@ ldr r9, {r9}
 cmp r9, #0
   beq _interpret_end ; Not a literal, so done.
 
-; Literal number in play, so push it too.
+/* Literal number in play, so push it too. */
 mov r0, r1 ; Move the literal from r1 to r0
 bl _comma  ; And push it too.
 b _interpret_end
 
 _interpret_execute:
-; Executing, run the word.
+/* Executing, run the word. */
 
 ldr r9, =interpret_is_lit
 ldr r9, {r9}
 cmp r9, #0
   bgt _interpret_push_literal
 
-; Not a literal, execute it now.
-; This never returns, but the codeword will eventually call NEXT,
-; which will reenter the loop in QUIT
+/*
+Not a literal, execute it now.
+This never returns, but the codeword will eventually call NEXT,
+which will reenter the loop in QUIT
+*/
 
 ldr r0, {r0}
 bx r0
 
 
 _interpret_push_literal:
-; Executing a literal means pushing it onto the stack.
+/* Executing a literal means pushing it onto the stack. */
 push {r1}
 b _interpret_end
 
 _interpret_illegal_number:
-; We couldn't find the word in the dictionary, and it isn't
-; a number either. Show an error message.
-; TODO - Improve the amount of detail in the message.
+/* We couldn't find the word in the dictionary, and it isn't */
+/* a number either. Show an error message. */
+/* TODO - Improve the amount of detail in the message. */
 
 ldr r3, =errmsg
 ldr r2, =errmsglen
@@ -1725,7 +1745,7 @@ interpret_is_lit:
 
 
 
-; Odds and ends
+/* Odds and ends */
 
 name_CHAR:
 .word name_INTERPRET
@@ -1755,7 +1775,7 @@ ldr r0, {r0} ; Load the value stored there
 bx r0 ; And jump there
 NEXT
 
-; EXECUTE needs to be the last word, or the initial value of var_LATEST needs updating.
+/* EXECUTE needs to be the last word, or the initial value of var_LATEST needs updating. */
 
 
 return_stack_top:
@@ -1765,7 +1785,7 @@ return_stack_top:
 .globl _start
 _start:
 startup:
-; Set up some globals
+/* Set up some globals */
 ldr r0, =return_stack_top
 str sp, {r0}
 mov r12, sp
@@ -1774,7 +1794,7 @@ sub sp, sp, #4096 ; Down by 1K
 ldr r0, =var_S0
 str sp, {r0}
 
-; And launch the interpreter
+/* And launch the interpreter */
 ldr r0, =QUIT
 ldr r11, =cold_start ; Initialize the interpreter
 NEXT
@@ -1785,5 +1805,3 @@ cold_start:
 
 
 .end
-; Word generation macro:
-; mz?name_n"xyw`z"cyiwIname_A"€kb:o.word "xpo.byte .ascii ""cpA".align"cpA:.word code_"cpocode_"cpA:NEXTkkkkkkk$

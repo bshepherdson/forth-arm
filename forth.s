@@ -116,8 +116,8 @@ name_ROT:
 ROT:
 .word code_ROT
 code_ROT:
-pop {r0,r1,r2} ; c b a
-push {r2,r0,r1} ; b a c (grab)
+pop {r0,r1,r2} /* c b a */
+push {r2,r0,r1} /* b a c (grab) */
 NEXT
 
 name_NEGROT:
@@ -128,8 +128,8 @@ name_NEGROT:
 NEGROT:
 .word code_NEGROT
 code_NEGROT:
-pop {r0,r1,r2} ; c b a
-push {r1,r2,r0} ; a c b (bury)
+pop {r0,r1,r2} /* c b a */
+push {r1,r2,r0} /* a c b (bury) */
 NEXT
 
 
@@ -274,7 +274,7 @@ SUB:
 .word code_SUB
 code_SUB:
 pop {r0,r1}
-sub r0, r1, r0 ; deeper on the stack minus shallower
+sub r0, r1, r0 /* deeper on the stack minus shallower */
 push {r0}
 NEXT
 
@@ -639,7 +639,7 @@ name_STORE:
 STORE:
 .word code_STORE
 code_STORE:
-pop {r0,r1} ; storage address, value to store
+pop {r0,r1} /* storage address, value to store */
 str r1, {r0}
 NEXT
 
@@ -664,7 +664,7 @@ name_ADDSTORE:
 ADDSTORE:
 .word code_ADDSTORE
 code_ADDSTORE:
-pop {r0,r1} ; storage address, adjustment value
+pop {r0,r1} /* storage address, adjustment value */
 ldr r2, {r0}
 add r2, r2, r1
 str r2, {r0}
@@ -678,7 +678,7 @@ name_SUBSTORE:
 SUBSTORE:
 .word code_SUBSTORE
 code_SUBSTORE:
-pop {r0,r1} ; storage address, adjustment value
+pop {r0,r1} /* storage address, adjustment value */
 ldr r2, {r0}
 sub r2, r2, r1
 str r2, {r0}
@@ -897,7 +897,7 @@ name_RSPSTORE:
 RSPSTORE:
 .word code_RSPSTORE
 code_RSPSTORE:
-pop {r12} ; I hope you know what you're doing.
+pop {r12} /* I hope you know what you're doing. */
 NEXT
 
 
@@ -1011,7 +1011,7 @@ name_WORD:
 WORD:
 .word code_WORD
 code_WORD:
-bl _word ; returns with r0 = address, r1 = length
+bl _word /* returns with r0 = address, r1 = length */
 push {r1,r0}
 NEXT
 
@@ -1021,15 +1021,15 @@ NEXT
 _word:
 push {lr}
 bl _key
-cmp r0, #0x5c ; backslash, the start of a line comment
+cmp r0, #0x5c /* backslash, the start of a line comment */
 beq _word_comment
-cmp r0, #0x20 ; space, keep searching for real letters
+cmp r0, #0x20 /* space, keep searching for real letters */
 beq _word
-cmp r0, #0x0d ; carriage return, keep searching
+cmp r0, #0x0d /* carriage return, keep searching */
 beq _word
-cmp r0, #0x0a ; newline, keep searching
+cmp r0, #0x0a /* newline, keep searching */
 beq _word
-cmp r0, #0x09 ; tap, keep searching
+cmp r0, #0x09 /* tap, keep searching */
 beq _word
 
 /* If we got down here, found a real letter. */
@@ -1039,20 +1039,20 @@ strb r0, {r6}
 add r0, r0, #1
 bl _key
 
-cmp r0, #0x10 ; backspace
+cmp r0, #0x10 /* backspace */
   beq _word_backspace
-cmp r0, #0x20 ; space, so jump down
+cmp r0, #0x20 /* space, so jump down */
   beq _word_complete
-cmp r0, #0x0d ; carriage return, jump down
+cmp r0, #0x0d /* carriage return, jump down */
   beq _word_complete
-cmp r0, #0x0a ; newline, jump down
+cmp r0, #0x0a /* newline, jump down */
   beq _word_complete
 
-b _word_main ; loop
+b _word_main /* loop */
 
 _word_complete:
 ldr r0, =_word_buffer
-sub r1, r6, r0 ; r1 now holds the length.
+sub r1, r6, r0 /* r1 now holds the length. */
 pop {pc}
 
 
@@ -1069,7 +1069,7 @@ b _word_main
 /* And the code to skip past a comment: */
 _word_comment:
 bl _key
-cmp r0, #0x0a ; newline, end of comment
+cmp r0, #0x0a /* newline, end of comment */
   beq _word
 b _word_comment
 
@@ -1088,9 +1088,9 @@ name_NUMBER:
 NUMBER:
 .word code_NUMBER
 code_NUMBER:
-pop {r2,r3} ; length of string, start address
+pop {r2,r3} /* length of string, start address */
 bl _number
-push {r2,r0} ; unparsed chars, number
+push {r2,r0} /* unparsed chars, number */
 NEXT
 
 
@@ -1100,7 +1100,7 @@ _number:
 mov r0, #0
 mov r0, r1
 
-cmp r2, #0 ; length 0 is an error. returns 0, I guess.
+cmp r2, #0 /* length 0 is an error. returns 0, I guess. */
   bxeq lr
 
 ldr r4, =var_BASE
@@ -1109,28 +1109,28 @@ ldr r4, {r4}
 /* Check if the first character is '-' */
 ldrb r1, {r3}
 add r3, r3, #1
-push {r0} ; Push a 0 to signal positive.
+push {r0} /* Push a 0 to signal positive. */
 cmp r1, #0x2d
-  bne _number_check_digit ; Not -, so it's just the first number.
+  bne _number_check_digit /* Not -, so it's just the first number. */
 
 /* If it is negative: */
-pop {r0} ; Pop the 0
-push {r1} ; Push the 0x2d, nonzero signals negative.
-sub r2, r2, #1 ; Decrement the length
+pop {r0} /* Pop the 0 */
+push {r1} /* Push the 0x2d, nonzero signals negative. */
+sub r2, r2, #1 /* Decrement the length */
 
 cmp r2, #0
-  bne _number_loop ; If C is nonzero, jump over error handler.
+  bne _number_loop /* If C is nonzero, jump over error handler. */
 
 /* C is 0, the string was just '-' */
-pop {r1} ; Remove the negation flag from the stack.
-mov r2, #1 ; Unparsed characters = 1
+pop {r1} /* Remove the negation flag from the stack. */
+mov r2, #1 /* Unparsed characters = 1 */
 bx lr
 
 
 /* Loop, reading digits */
 _number_loop:
-mul r0, r0, r4 ; r0 *= BASE
-ldrb r1, {r3} ; Get next character
+mul r0, r0, r4 /* r0 *= BASE */
+ldrb r1, {r3} /* Get next character */
 add r3, r3, #1
 
 _number_check_digit:
@@ -1142,13 +1142,13 @@ cmp r1, #'A'
   blt _number_end
 
 /* If we made it here, it's a letter-digit */
-sub r1, r1, 8 ; 65-57 = 8, turns 'A' into '9' + 1
+sub r1, r1, 8 /* 65-57 = 8, turns 'A' into '9' + 1 */
 
 _number_found_digit:
 /* Adjust to be the actual number */
 sub r1, r1, #0x30
 
-cmp r1, r4 ; Check that it's < BASE
+cmp r1, r4 /* Check that it's < BASE */
   blt _number_good
 b _number_end
 
@@ -1157,12 +1157,12 @@ _number_good:
 add r0, r0, r1
 sub r2, r2, #1
 cmp r2, 0
-  bgt _number_loop ; loop if there's still bytes to be had
+  bgt _number_loop /* loop if there's still bytes to be had */
 
 _number_end:
-pop {r1} ; Grab the negativity flag we pushed earlier.
+pop {r1} /* Grab the negativity flag we pushed earlier. */
 cmp r1, #0
-  beq _number_return ; positive, just return.
+  beq _number_return /* positive, just return. */
 
 /* Negate the number (2's complement) */
 mvn r3, #0
@@ -1185,9 +1185,9 @@ name_FIND:
 FIND:
 .word code_FIND
 code_FIND:
-pop {r2,r3} ; length on top of the stack -> r2, address beneath -> r3
+pop {r2,r3} /* length on top of the stack -> r2, address beneath -> r3 */
 bl _find
-push {r0} ; address of dictionary entry, or 0.
+push {r0} /* address of dictionary entry, or 0. */
 NEXT
 
 
@@ -1203,7 +1203,7 @@ ldr r4, {r4}
 
 _find_loop:
 cmp r4, #0
-  beq _find_failed ; NULL pointer, reached the end.
+  beq _find_failed /* NULL pointer, reached the end. */
 
 /*
 Check the length of the word.
@@ -1211,11 +1211,11 @@ Note that if the F_HIDDEN flag is set on the word, then by a bit of trickery thi
 won't find the word, since the length appears to be wrong.
 */
 mov r0, #0
-add r4, r4, #4 ; Advance to the flags/length field.
-ldrb r1, {r4} ; Grab that field.
-add r4, r4, #1 ; Advance to the first letter.
+add r4, r4, #4 /* Advance to the flags/length field. */
+ldrb r1, {r4} /* Grab that field. */
+add r4, r4, #1 /* Advance to the first letter. */
 and r1, r1, #F_HIDDEN_AND_LENMASK
-cmp r1, r2 ; Check length against target length
+cmp r1, r2 /* Check length against target length */
   bne _find_follow_link
 
 /*
@@ -1229,31 +1229,31 @@ mov r5, #0
 _find_compare_loop:
 cmp r2, r5
   bgt _find_continue_comparing
-b _find_found ; If c == 0 then we've run out of letters.
+b _find_found /* If c == 0 then we've run out of letters. */
 
 _find_continue_comparing:
-add r0, r3, r5 ; r0 is now the address of the next letter.
-ldrb r0, {r0} ; And now the actual letter itself.
+add r0, r3, r5 /* r0 is now the address of the next letter. */
+ldrb r0, {r0} /* And now the actual letter itself. */
 
-add r1, r4, r5 ; r1 is not the address of the dictionary letter
-ldrb r1, {r1} ; and the letter itself
+add r1, r4, r5 /* r1 is not the address of the dictionary letter */
+ldrb r1, {r1} /* and the letter itself */
 
 add r5, r5, #1
 
 cmp r0, r1
-  bne _find_follow_link ; Not equal, follow the link pointer
+  bne _find_follow_link /* Not equal, follow the link pointer */
 b _find_compare_loop
 
 _find_follow_link:
-ldr r4, {r4,#-5} ; Reach back to the pointer, and follow it.
+ldr r4, {r4,#-5} /* Reach back to the pointer, and follow it. */
 b _find_loop
 
 _find_found:
-sub r0, r4, #5 ; Put the beginning of the block into r0
+sub r0, r4, #5 /* Put the beginning of the block into r0 */
 bx lr
 
 _find_failed:
-mov r0, #0 ; Return 0 on failure.
+mov r0, #0 /* Return 0 on failure. */
 bx lr
 
 
@@ -1266,7 +1266,7 @@ name_TCFA:
 TCFA:
 .word code_TCFA
 code_TCFA:
-pop {r3} ; dictionary address
+pop {r3} /* dictionary address */
 bl _tcfa
 push {r3}
 NEXT
@@ -1279,13 +1279,13 @@ Clobbers r0, r3
 */
 _tcfa:
 mov r0, #0
-add r3, r3, #4 ; skip over link pointer, now points to length
-ldrb r0, {r3} ; Retrieve the length+flags
+add r3, r3, #4 /* skip over link pointer, now points to length */
+ldrb r0, {r3} /* Retrieve the length+flags */
 and r0, #F_LENMASK
-add r3, r3, r0 ; Move it ahead to the last letter
-add r3, r3, #4 ; One more to the codeword-ish
+add r3, r3, r0 /* Move it ahead to the last letter */
+add r3, r3, #4 /* One more to the codeword-ish */
 mvn r0, #3
-and r3, r3, r0 ; Mask off the last two bits, to align.
+and r3, r3, r0 /* Mask off the last two bits, to align. */
 /* r3 is now the codeword */
 bx lr
 
@@ -1300,7 +1300,7 @@ TDFA:
 code_TDFA:
 pop {r3}
 bl _tcfa
-add r3, r3, #4 ; Jump over to the code.
+add r3, r3, #4 /* Jump over to the code. */
 push {r3}
 NEXT
 
@@ -1316,7 +1316,7 @@ name_CREATE:
 CREATE:
 .word code_CREATE
 code_CREATE:
-pop {r2,r1} ; length from the top, address of the name underneath
+pop {r2,r1} /* length from the top, address of the name underneath */
 
 /* Store the link pointer. */
 ldr r3, =var_HERE
@@ -1324,18 +1324,18 @@ ldr r3, {r3}
 ldr r0, =var_LATEST
 ldr r0, {r0}
 
-str r0, {r3} ; Write LATEST into the new link pointer at HERE
+str r0, {r3} /* Write LATEST into the new link pointer at HERE */
 ldr r4, =var_LATEST
-str r3, {r4} ; And write the new HERE into LATEST
-add r3, r3, #4 ; Jump over the link pointer.
+str r3, {r4} /* And write the new HERE into LATEST */
+add r3, r3, #4 /* Jump over the link pointer. */
 
 /* Length byte and the word itself need storing. */
-strb r2, {r3} ; store the length byte
-add r3, r3, #1 ; Move to the start of the string.
+strb r2, {r3} /* store the length byte */
+add r3, r3, #1 /* Move to the start of the string. */
 
 _create_name_loop
-ldrb r5, {r1} ; Load the next letter of the name into r5
-strb r5, {r3} ; And write it into the new word block
+ldrb r5, {r1} /* Load the next letter of the name into r5 */
+strb r5, {r3} /* And write it into the new word block */
 add r1, r1, #1
 add r3, r3, #1
 
@@ -1366,21 +1366,21 @@ name_COMMA:
 COMMA:
 .word code_COMMA
 code_COMMA:
-pop {r0} ; value to store
+pop {r0} /* value to store */
 bl _comma
 NEXT
 
 _comma:
 ldr r3, =var_HERE
-ldr r1, {r3} ; HERE value is in r1, address in r3
-str r0, {r1} ; Store the specified value at HERE
-add r1, r1, #4 ; Update the HERE value
-str r1, {r3} ; And store it back
+ldr r1, {r3} /* HERE value is in r1, address in r3 */
+str r0, {r1} /* Store the specified value at HERE */
+add r1, r1, #4 /* Update the HERE value */
+str r1, {r3} /* And store it back */
 
 
 name_LBRAC:
 .word name_COMMA
-.byte 0x81 ; F_IMMED | 1
+.byte 0x81 /* F_IMMED | 1 */
 .ascii "["
 .align
 LBRAC:
@@ -1388,7 +1388,7 @@ LBRAC:
 code_LBRAC:
 ldr r0, =var_STATE
 mov r1, #0
-str r1, {r0} ; Update the STATE to 0
+str r1, {r0} /* Update the STATE to 0 */
 NEXT
 
 name_RBRAC:
@@ -1401,7 +1401,7 @@ RBRAC:
 code_RBRAC:
 ldr r0, =var_STATE
 mov r1, #1
-str r1, {r0} ; Update the STATE to 1
+str r1, {r0} /* Update the STATE to 1 */
 NEXT
 
 
@@ -1432,7 +1432,7 @@ COLON:
 
 name_SEMICOLON:
 .word name_COLON
-.byte 0x81 ; F_IMMED | 1
+.byte 0x81 /* F_IMMED | 1 */
 .ascii ";"
 .align
 SEMICOLON:
@@ -1453,7 +1453,7 @@ SEMICOLON:
 
 name_IMMEDIATE:
 .word name_SEMICOLON
-.byte 0x89 ; F_IMMED | 9
+.byte 0x89 /* F_IMMED | 9 */
 .ascii "IMMEDIATE"
 .align
 IMMEDIATE:
@@ -1461,10 +1461,10 @@ IMMEDIATE:
 code_IMMEDIATE:
 ldr r3, =var_LATEST
 ldr r3, {r3}
-add r3, r3, #4 ; Aim at length byte
-ldrb r4, {r3}  ; Get that byte
-eor r4, r4, #F_IMMED ; Toggle the IMMEDIATE bit
-strb r4, {r3}  ; And write it back
+add r3, r3, #4 /* Aim at length byte */
+ldrb r4, {r3}  /* Get that byte */
+eor r4, r4, #F_IMMED /* Toggle the IMMEDIATE bit */
+strb r4, {r3}  /* And write it back */
 NEXT
 
 
@@ -1476,10 +1476,10 @@ name_HIDDEN:
 HIDDEN:
 .word code_HIDDEN
 code_HIDDEN:
-pop {r3} ; Address of the dictionary entry.
-add r3, r3, #4 ; Point at the length byte
-ldrb r4, {r3}  ; Load it
-eor r4, r4, #F_HIDDEN ; Toggle the HIDDEN bit
+pop {r3} /* Address of the dictionary entry. */
+add r3, r3, #4 /* Point at the length byte */
+ldrb r4, {r3}  /* Load it */
+eor r4, r4, #F_HIDDEN /* Toggle the HIDDEN bit */
 strb r4, {r3}
 NEXT
 
@@ -1508,9 +1508,9 @@ name_TICK:
 TICK:
 .word code_TICK
 code_TICK:
-ldr r0, {r11} ; Get the address of the next word.
-add r11, r11, #4 ; Skip it.
-push {r0} ; Push the address
+ldr r0, {r11} /* Get the address of the next word. */
+add r11, r11, #4 /* Skip it. */
+push {r0} /* Push the address */
 NEXT
 /*
 TODO - This definition only works in compiled code.
@@ -1532,8 +1532,8 @@ BRANCH:
 .word code_BRANCH
 code_BRANCH:
 _branch_inner:
-ldr r0, {r11} ; Get the value at I
-add r11, r11, r0 ; And offset by it, since it's the branch amount.
+ldr r0, {r11} /* Get the value at I */
+add r11, r11, r0 /* And offset by it, since it's the branch amount. */
 /* Beautiful and cunning. */
 NEXT
 
@@ -1546,7 +1546,7 @@ name_ZBRANCH:
 ZBRANCH:
 .word code_ZBRANCH
 code_ZBRANCH:
-pop {r0} ; Get the flag
+pop {r0} /* Get the flag */
 cmp r0, #0
   beq code_BRANCH
 
@@ -1565,10 +1565,10 @@ name_LITSTRING:
 LITSTRING:
 .word code_LITSTRING
 code_LITSTRING:
-ldr r0, {r11} ; Get the length of the string from the next word
-add r11, r11, #4 ; And skip over it
-push {r0,r11} ; Push the length (r0) and the address of the start of the string (r11)
-add r11, r11, r0 ; Skip past the string
+ldr r0, {r11} /* Get the length of the string from the next word */
+add r11, r11, #4 /* And skip over it */
+push {r0,r11} /* Push the length (r0) and the address of the start of the string (r11) */
+add r11, r11, r0 /* Skip past the string */
 /* and align */
 add r11, r11, #3
 mvn r0, #3
@@ -1585,7 +1585,7 @@ name_TELL:
 TELL:
 .word code_TELL
 code_TELL:
-pop {r8,r9} ; Length = r8, address = r9
+pop {r8,r9} /* Length = r8, address = r9 */
 
 cmp r8, #0
   beq _tell_done
@@ -1596,8 +1596,8 @@ NEXT
 
 _tell:
 push {lr}
-ldrb r0, {r9} ; Get the next character
-bl _emit ; Clobbers r0-r2, r7
+ldrb r0, {r9} /* Get the next character */
+bl _emit /* Clobbers r0-r2, r7 */
 add r9, r9, #1
 sub r8, r8 #1
 cmp r8, #0
@@ -1629,7 +1629,7 @@ INTERPRET:
 .word code_INTERPRET
 code_INTERPRET:
 
-bl _word ; r0 has the address, r1 the length
+bl _word /* r0 has the address, r1 the length */
 
 /* Not a literal number (at least not yet) */
 ldr r2, =interpret_is_lit
@@ -1639,26 +1639,26 @@ str r3, {r2}
 /* Adjust for the differences between my FIND and WORD. TODO: Clean this up. */
 mov r2, r1
 mov r3, r0
-mov r9, r1 ; Save r1
+mov r9, r1 /* Save r1 */
 bl _find
-mov r1, r9 ; And restore
+mov r1, r9 /* And restore */
 
 cmp r0, #0
   beq _interpret_not_in_dict
 
 /* In the dictionary. Check if it's an IMMEDIATE codeword */
-add r2, r0, #4 ; r2 is the address of the dictionary header's length byte
-ldrb r9, {r2} ; Set aside the actual value of that word
+add r2, r0, #4 /* r2 is the address of the dictionary header's length byte */
+ldrb r9, {r2} /* Set aside the actual value of that word */
 
 /* _TCFA expects the address in r3 */
 mov r3, r0
 bl _tcfa
-mov r0, r3 ; Move the address of the codeword into r0
+mov r0, r3 /* Move the address of the codeword into r0 */
 
 /* Now r3 points at the codeword */
-and r2, r9, #F_IMMED ; r2 holds the and result
+and r2, r9, #F_IMMED /* r2 holds the and result */
 cmp r2, #0
-  bgt _interpret_execute ; Jump straight to executing
+  bgt _interpret_execute /* Jump straight to executing */
 b _interpret_compile_check
 
 _interpret_not_in_dict:
@@ -1669,14 +1669,14 @@ str r8, {r9}
 
 /* _NUMBER expects the length in r2 and the address in r3. */
 /* It returns the number in r0 and the number unparsed in r2. */
-mov r2, r1 ; The length was in r1, now in r2
+mov r2, r1 /* The length was in r1, now in r2 */
 bl _number
 
 cmp r2, #0
   bgt _interpret_illegal_number
 
 mov r1, r0
-ldr r0, =LIT ; Set the word to LIT
+ldr r0, =LIT /* Set the word to LIT */
 
 _interpret_compile_check:
 /* Are we compiling or executing? */
@@ -1684,19 +1684,19 @@ _interpret_compile_check:
 ldr r4, =var_STATE
 ldr r4, {r4}
 cmp r4, #0
-  beq _interpret_execute ; Executing, so jump there
+  beq _interpret_execute /* Executing, so jump there */
 
 /* Compiling. Append the word to the current dictionary definition. */
-bl _comma ; The word lives in r0, which is what _comma wants.
+bl _comma /* The word lives in r0, which is what _comma wants. */
 
 ldr r9, =interpret_is_lit
 ldr r9, {r9}
 cmp r9, #0
-  beq _interpret_end ; Not a literal, so done.
+  beq _interpret_end /* Not a literal, so done. */
 
 /* Literal number in play, so push it too. */
-mov r0, r1 ; Move the literal from r1 to r0
-bl _comma  ; And push it too.
+mov r0, r1 /* Move the literal from r1 to r0 */
+bl _comma  /* And push it too. */
 b _interpret_end
 
 _interpret_execute:
@@ -1731,7 +1731,7 @@ ldr r3, =errmsg
 ldr r2, =errmsglen
 ldr r2, {r2}
 bl _tell
-mov r0, #0x0a ;  newline
+mov r0, #0x0a /*  newline */
 bl _emit
 
 _interpret_end:
@@ -1756,9 +1756,9 @@ name_CHAR:
 CHAR:
 .word code_CHAR
 code_CHAR:
-bl _word ; Address in r0
-ldrb r0, {r0} ; Get the letter
-push {r0} ; push it
+bl _word /* Address in r0 */
+ldrb r0, {r0} /* Get the letter */
+push {r0} /* push it */
 NEXT
 
 
@@ -1771,9 +1771,9 @@ name_EXECUTE:
 EXECUTE:
 .word code_EXECUTE
 code_EXECUTE:
-pop {r0} ; Get the execution token (a pointer) off the stack
-ldr r0, {r0} ; Load the value stored there
-bx r0 ; And jump there
+pop {r0} /* Get the execution token (a pointer) off the stack */
+ldr r0, {r0} /* Load the value stored there */
+bx r0 /* And jump there */
 NEXT
 
 /* EXECUTE needs to be the last word, or the initial value of var_LATEST needs updating. */
@@ -1790,14 +1790,14 @@ startup:
 ldr r0, =return_stack_top
 str sp, {r0}
 mov r12, sp
-sub sp, sp, #4096 ; Down by 1K
+sub sp, sp, #4096 /* Down by 1K */
 
 ldr r0, =var_S0
 str sp, {r0}
 
 /* And launch the interpreter */
 ldr r0, =QUIT
-ldr r11, =cold_start ; Initialize the interpreter
+ldr r11, =cold_start /* Initialize the interpreter */
 NEXT
 
 cold_start:

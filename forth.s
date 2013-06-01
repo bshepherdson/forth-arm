@@ -117,7 +117,8 @@ ROT:
 .word code_ROT
 code_ROT:
 pop {r0,r1,r2} /* c b a */
-push {r2,r0,r1} /* b a c (grab) */
+push {r0,r1} /* b a c (grab) */
+push {r2}
 NEXT
 
 name_NEGROT:
@@ -129,6 +130,7 @@ NEGROT:
 .word code_NEGROT
 code_NEGROT:
 pop {r0,r1,r2} /* c b a */
+push {r0}
 push {r1,r2,r0} /* a c b (bury) */
 NEXT
 
@@ -166,7 +168,8 @@ TWOSWAP:
 .word code_TWOSWAP
 code_TWOSWAP:
 pop {r0,r1,r2,r3}
-push {r2,r3,r0,r1}
+push {r0,r1}
+push {r2,r3}
 NEXT
 
 name_TWOOVER:
@@ -287,8 +290,8 @@ MUL:
 .word code_MUL
 code_MUL:
 pop {r0,r1}
-mul r0, r0, r1
-push {r0}
+mul r2, r0, r1
+push {r2}
 NEXT
 
 /* No integer division instructions on the ARM. Can use floating point and convert back, or Euclid's algorithm. */
@@ -442,13 +445,12 @@ name_LE:
 LE:
 .word code_LE
 code_LE:
-pop {
-NEXT
 pop {r0,r1}
 mov r2, #0
 cmp r1, r0
 addle r2, r2, #1
 push {r2}
+NEXT
 
 
 

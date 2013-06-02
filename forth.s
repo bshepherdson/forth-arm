@@ -35,7 +35,7 @@ ldmia r12!, {r11}
 
 
 /* Actual entry point */
-b startup
+b main
 
 
 
@@ -1763,23 +1763,21 @@ NEXT
 
 
 
-.globl _start
-_start:
-startup:
-/* Request working space from the OS, using brk(2). */
-/* Currently set to 256K */
+.globl main
+main:
+/* Call malloc to request space for HERE. Currently 256K */
 mov r0, #1
 lsl r0, r0, #18
-mov r9, r0
-mov r7, #__NR_brk
-swi #0
+bl malloc
+/* r0 now contains the pointer to the memory */
+ldr r1, =var_HERE
+str r0, [r1]
 
-/* Set up the globals */
+/* Set up the stacks */
 ldr r0, =return_stack_top
-mov sp, r9
 str sp, [r0]
 mov r12, sp
-sub sp, sp, #4096 /* Down by 1K */
+sub sp, sp, #4096 /* Leave 1K words for the return stack */
 
 ldr r0, =var_S0
 str sp, [r0]
@@ -1791,10 +1789,6 @@ NEXT
 
 cold_start:
 .word QUIT
-
-
-init_HERE:
-.word init_HERE+1
 
 
 .data
@@ -1812,10 +1806,10 @@ var_BASE:
 .word 10
 
 key_buffer:
-.byte
+.word 0
 
 _word_buffer:
-.space 30
+.space 32
 
 
 interpret_is_lit:
@@ -1828,6 +1822,6 @@ return_stack_top:
 
 /* var_HERE must be the last entry in the data segment */
 var_HERE:
-.word var_HERE + 4
+.word 0
 
 .end

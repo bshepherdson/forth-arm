@@ -131,7 +131,7 @@ NEGROT:
 code_NEGROT:
 pop {r0,r1,r2} /* c b a */
 push {r0}
-push {r1,r2,r0} /* a c b (bury) */
+push {r1,r2} /* a c b (bury) */
 NEXT
 
 
@@ -696,7 +696,7 @@ name_STATE:
 STATE:
 .word code_STATE
 code_STATE:
-mov r0, var_STATE
+ldr r0, =var_STATE
 push {r0}
 NEXT
 
@@ -712,7 +712,7 @@ name_LATEST:
 LATEST:
 .word code_LATEST
 code_LATEST:
-mov r0, var_LATEST
+ldr r0, =var_LATEST
 push {r0}
 NEXT
 
@@ -727,7 +727,7 @@ name_HERE:
 HERE:
 .word code_HERE
 code_HERE:
-mov r0, var_HERE
+ldr r0, =var_HERE
 push {r0}
 NEXT
 
@@ -744,7 +744,7 @@ name_S0:
 S0:
 .word code_S0
 code_S0:
-mov r0, var_S0
+ldr r0, =var_S0
 push {r0}
 NEXT
 
@@ -760,7 +760,7 @@ name_BASE:
 BASE:
 .word code_BASE
 code_BASE:
-mov r0, var_BASE
+ldr r0, =var_BASE
 push {r0}
 NEXT
 
@@ -1014,7 +1014,8 @@ WORD:
 .word code_WORD
 code_WORD:
 bl _word /* returns with r0 = address, r1 = length */
-push {r1,r0}
+push {r0}
+push {r1}
 NEXT
 
 
@@ -1092,7 +1093,8 @@ NUMBER:
 code_NUMBER:
 pop {r2,r3} /* length of string, start address */
 bl _number
-push {r2,r0} /* unparsed chars, number */
+push {r0}
+push {r2} /* unparsed chars, number */
 NEXT
 
 
@@ -1131,7 +1133,8 @@ bx lr
 
 /* Loop, reading digits */
 _number_loop:
-mul r0, r0, r4 /* r0 *= BASE */
+mov r9, r0
+mul r0, r9, r4 /* r0 *= BASE */
 ldrb r1, [r3] /* Get next character */
 add r3, r3, #1
 
@@ -1144,7 +1147,7 @@ cmp r1, #'A'
   blt _number_end
 
 /* If we made it here, it's a letter-digit */
-sub r1, r1, 8 /* 65-57 = 8, turns 'A' into '9' + 1 */
+sub r1, r1, #8 /* 65-57 = 8, turns 'A' into '9' + 1 */
 
 _number_found_digit:
 /* Adjust to be the actual number */
@@ -1158,7 +1161,7 @@ b _number_end
 _number_good:
 add r0, r0, r1
 sub r2, r2, #1
-cmp r2, 0
+cmp r2, #0
   bgt _number_loop /* loop if there's still bytes to be had */
 
 _number_end:
@@ -1318,7 +1321,8 @@ name_CREATE:
 CREATE:
 .word code_CREATE
 code_CREATE:
-pop {r2,r1} /* length from the top, address of the name underneath */
+pop {r1} /* length from the top, address of the name underneath */
+pop {r2}
 
 /* Store the link pointer. */
 ldr r3, =var_HERE
@@ -1335,7 +1339,7 @@ add r3, r3, #4 /* Jump over the link pointer. */
 strb r2, [r3] /* store the length byte */
 add r3, r3, #1 /* Move to the start of the string. */
 
-_create_name_loop
+_create_name_loop:
 ldrb r5, [r1] /* Load the next letter of the name into r5 */
 strb r5, [r3] /* And write it into the new word block */
 add r1, r1, #1
@@ -1361,7 +1365,7 @@ NEXT
 
 
 name_COMMA:
-.word name_loop
+.word name_CREATE
 .byte 1
 .ascii ","
 .align
@@ -1601,7 +1605,7 @@ push {lr}
 ldrb r0, [r9] /* Get the next character */
 bl _emit /* Clobbers r0-r2, r7 */
 add r9, r9, #1
-sub r8, r8 #1
+sub r8, r8, #1
 cmp r8, #0
   bgt _tell
 pop {pc}
@@ -1635,7 +1639,7 @@ bl _word /* r0 has the address, r1 the length */
 
 /* Not a literal number (at least not yet) */
 ldr r2, =interpret_is_lit
-ldr r3, #0
+mov r3, #0
 str r3, [r2]
 
 /* Adjust for the differences between my FIND and WORD. TODO: Clean this up. */
@@ -1806,5 +1810,7 @@ cold_start:
 .word QUIT
 
 
+init_HERE:
+.word init_HERE+1
 
 .end

@@ -42,7 +42,7 @@ b startup
 /* DOCOL. The interpreter code for running functions written in Forth. Expects r0 to be the codeword address! */
 DOCOL:
 PUSHRSP
-add r0, #1
+add r0, #4
 mov r11, r0
 NEXT
 
@@ -931,6 +931,7 @@ NEXT
 /* Syscalls and other constants */
 .set __NR_read, 3
 .set __NR_write, 4
+.set __NR_brk, 45
 
 .set stdin, 1
 .set stdout, 2
@@ -956,7 +957,7 @@ NEXT
 _key:
 mov r0, #stdin
 ldr r1, =key_buffer
-mov r0, #1
+mov r2, #1
 mov r7, #__NR_read
 swi #0
 ldr r0, =key_buffer
@@ -1023,7 +1024,7 @@ beq _word
 ldr r6, =_word_buffer
 _word_main:
 strb r0, [r6]
-add r0, r0, #1
+add r6, r6, #1
 bl _key
 
 cmp r0, #0x10 /* backspace */
@@ -1081,7 +1082,7 @@ NEXT
 /* Clobbers r0-r3 and returns the number in r0 and the number of unparsed characters in r3. */
 _number:
 mov r0, #0
-mov r0, r1
+mov r1, r0
 
 cmp r2, #0 /* length 0 is an error. returns 0, I guess. */
   bxeq lr
@@ -1767,9 +1768,11 @@ _start:
 startup:
 /* Request working space from the OS, using brk(2). */
 /* Currently set to 256K */
-mov r0, #1 lsl 18
+mov r0, #1
+lsl r0, r0, #18
 mov r9, r0
 mov r7, #__NR_brk
+swi #0
 
 /* Set up the globals */
 ldr r0, =return_stack_top

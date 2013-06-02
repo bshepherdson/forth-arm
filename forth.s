@@ -3,7 +3,7 @@
 /*
 Register outline
 sp/r13 is used as the data stack pointer.
-r12 is used for the return stack pointer. (J in DCPU-16)
+r10 is used for the return stack pointer. (J in DCPU-16)
 r11 is used for the next Forth word. (I in DCPU-16)
 
 Some macros for common parts of the Forth system.
@@ -16,15 +16,15 @@ add r11, #4
 ldr pc, [r0]
 .endm
 
-/* PUSHRSP macro: Needs to store the current Forth word (R11) to the position pointed to by RSP (R12), and decrement RSP. */
+/* PUSHRSP macro: Needs to store the current Forth word (R11) to the position pointed to by RSP (r10), and decrement RSP. */
 /* This is used to push the execution state onto the return stack. */
 .macro PUSHRSP
-stmdb r12!, {r11}
+stmdb r10!, {r11}
 .endm
 
 /* POPRSP macro: Retrieves the value from the top of the return stack into r11 (next Forth word). */
 .macro POPRSP
-ldmia r12!, {r11}
+ldmia r10!, {r11}
 .endm
 
 
@@ -873,7 +873,7 @@ name_RSPFETCH:
 RSPFETCH:
 .word code_RSPFETCH
 code_RSPFETCH:
-push {r12}
+push {r10}
 NEXT
 
 
@@ -885,7 +885,7 @@ name_RSPSTORE:
 RSPSTORE:
 .word code_RSPSTORE
 code_RSPSTORE:
-pop {r12} /* I hope you know what you're doing. */
+pop {r10} /* I hope you know what you're doing. */
 NEXT
 
 
@@ -897,7 +897,7 @@ name_RDROP:
 RDROP:
 .word code_RDROP
 code_RDROP:
-add r12, r12, #4
+add r10, r10, #4
 NEXT
 
 
@@ -955,14 +955,26 @@ NEXT
 /* No input, returns a character in r0 */
 /* Clobbers r0-r2 + r7 + lr */
 _key:
-mov r0, #stdin
+push {lr}
+_key_inner:
+ldr r0, =current_fd
+ldr r0, [r0]
 ldr r1, =key_buffer
 mov r2, #1
-mov r7, #__NR_read
-swi #0
+bl read
+
+/* Check for a read of zero */
+cmp r0, #0
+  beq _key_eof
+
 ldr r0, =key_buffer
 ldrb r0, [r0]
-bx lr
+pop {pc}
+
+_key_eof:
+/* Load a new file, or stdin */
+bl _load_files
+b _key_inner
 
 
 name_EMIT:
@@ -1763,8 +1775,52 @@ NEXT
 
 
 
+/* Reads argc and argv, and queues up the next file if there are more */
+_load_files:
+push {r0,r1,r7,r8,r9,lr}
+ldr r8, =argc
+ldr r7, [r8]
+cmp r7, #0
+  bgt _load_files_load
+
+/* Otherwise, we're just setting the file to stdin */
+ldr r0, =current_fd
+mov r1, #stdin
+str r1, [r0]
+b _load_files_done
+
+_load_files_load:
+ldr r9, =argv
+ldr r0, [r9] /* r0 holds the argv pointer */
+ldr r0, [r0] /* r0 holds the char* */
+mov r1, #0   /* 0 is O_RDONLY */
+bl open
+
+ldr r1, =current_fd
+str r0, [r1]
+
+ldr r0, [r9]
+add r0, r0, #4 /* advance the argv pointer */
+str r0, [r9]
+
+sub r7, r7, #1
+str r7, [r8] /* write back argc */
+
+_load_files_done:
+pop {r0,r1,r7,r8,r9,pc}
+
+
+
 .globl main
 main:
+/* Check for the command-line args, and set aside their values */
+ldr r3, =argc
+sub r0, r0, #1 /* jump over the command name */
+str r0, [r3]
+ldr r3, =argv
+add r1, r1, #4 /* jump over the command name */
+str r1, [r3]
+
 /* Call malloc to request space for HERE. Currently 256K */
 mov r0, #1
 lsl r0, r0, #18
@@ -1776,11 +1832,14 @@ str r0, [r1]
 /* Set up the stacks */
 ldr r0, =return_stack_top
 str sp, [r0]
-mov r12, sp
+mov r10, sp
 sub sp, sp, #4096 /* Leave 1K words for the return stack */
 
 ldr r0, =var_S0
 str sp, [r0]
+
+/* Load the first file, if applicable */
+bl _load_files
 
 /* And launch the interpreter */
 ldr r0, =QUIT
@@ -1819,6 +1878,13 @@ interpret_is_lit:
 return_stack_top:
 .word 0
 
+current_fd:
+.word stdin
+
+argc:
+.word 0
+argv:
+.word 0
 
 /* var_HERE must be the last entry in the data segment */
 var_HERE:

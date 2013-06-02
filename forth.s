@@ -627,7 +627,7 @@ name_LIT:
 LIT:
 .word code_LIT
 code_LIT:
-ldr r0, {r11}
+ldr r0, [r11]
 push {r0}
 add r11, r11, #4
 NEXT
@@ -642,7 +642,7 @@ STORE:
 .word code_STORE
 code_STORE:
 pop {r0,r1} /* storage address, value to store */
-str r1, {r0}
+str r1, [r0]
 NEXT
 
 name_FETCH:
@@ -654,7 +654,7 @@ FETCH:
 .word code_FETCH
 code_FETCH:
 pop {r0}
-ldr r0, {r0}
+ldr r0, [r0]
 push {r0}
 NEXT
 
@@ -667,9 +667,9 @@ ADDSTORE:
 .word code_ADDSTORE
 code_ADDSTORE:
 pop {r0,r1} /* storage address, adjustment value */
-ldr r2, {r0}
+ldr r2, [r0]
 add r2, r2, r1
-str r2, {r0}
+str r2, [r0]
 NEXT
 
 name_SUBSTORE:
@@ -681,9 +681,9 @@ SUBSTORE:
 .word code_SUBSTORE
 code_SUBSTORE:
 pop {r0,r1} /* storage address, adjustment value */
-ldr r2, {r0}
+ldr r2, [r0]
 sub r2, r2, r1
-str r2, {r0}
+str r2, [r0]
 NEXT
 
 
@@ -790,7 +790,7 @@ _R0:
 .word code_R0
 code_R0:
 ldr r0, =return_stack_top
-ldr r0, {r0}
+ldr r0, [r0]
 push {r0}
 NEXT
 
@@ -976,7 +976,7 @@ mov r0, #1
 mov r7, #__NR_read
 swi #0
 ldr r0, =key_buffer
-ldrb r0, {r0}
+ldrb r0, [r0]
 bx lr
 
 
@@ -997,7 +997,7 @@ NEXT
 _emit:
 push {lr}
 ldr r1, =key_buffer
-strb r0, {r1}
+strb r0, [r1]
 mov r0, #stdout
 mov r2, #1
 mov r7, #__NR_write
@@ -1037,7 +1037,7 @@ beq _word
 /* If we got down here, found a real letter. */
 ldr r6, =_word_buffer
 _word_main:
-strb r0, {r6}
+strb r0, [r6]
 add r0, r0, #1
 bl _key
 
@@ -1065,7 +1065,7 @@ Kind of a hack, but it works.
 */
 _word_backspace:
 sub r6, r6, #2
-ldr r0, {r6}
+ldr r0, [r6]
 b _word_main
 
 /* And the code to skip past a comment: */
@@ -1106,10 +1106,10 @@ cmp r2, #0 /* length 0 is an error. returns 0, I guess. */
   bxeq lr
 
 ldr r4, =var_BASE
-ldr r4, {r4}
+ldr r4, [r4]
 
 /* Check if the first character is '-' */
-ldrb r1, {r3}
+ldrb r1, [r3]
 add r3, r3, #1
 push {r0} /* Push a 0 to signal positive. */
 cmp r1, #0x2d
@@ -1132,7 +1132,7 @@ bx lr
 /* Loop, reading digits */
 _number_loop:
 mul r0, r0, r4 /* r0 *= BASE */
-ldrb r1, {r3} /* Get next character */
+ldrb r1, [r3] /* Get next character */
 add r3, r3, #1
 
 _number_check_digit:
@@ -1201,7 +1201,7 @@ Clobbers r0-r3
 _find:
 
 ldr r4, =var_LATEST
-ldr r4, {r4}
+ldr r4, [r4]
 
 _find_loop:
 cmp r4, #0
@@ -1214,7 +1214,7 @@ won't find the word, since the length appears to be wrong.
 */
 mov r0, #0
 add r4, r4, #4 /* Advance to the flags/length field. */
-ldrb r1, {r4} /* Grab that field. */
+ldrb r1, [r4] /* Grab that field. */
 add r4, r4, #1 /* Advance to the first letter. */
 and r1, r1, #F_HIDDEN_AND_LENMASK
 cmp r1, r2 /* Check length against target length */
@@ -1235,10 +1235,10 @@ b _find_found /* If c == 0 then we've run out of letters. */
 
 _find_continue_comparing:
 add r0, r3, r5 /* r0 is now the address of the next letter. */
-ldrb r0, {r0} /* And now the actual letter itself. */
+ldrb r0, [r0] /* And now the actual letter itself. */
 
 add r1, r4, r5 /* r1 is not the address of the dictionary letter */
-ldrb r1, {r1} /* and the letter itself */
+ldrb r1, [r1] /* and the letter itself */
 
 add r5, r5, #1
 
@@ -1247,7 +1247,7 @@ cmp r0, r1
 b _find_compare_loop
 
 _find_follow_link:
-ldr r4, {r4,#-5} /* Reach back to the pointer, and follow it. */
+ldr r4, [r4,#-5] /* Reach back to the pointer, and follow it. */
 b _find_loop
 
 _find_found:
@@ -1282,7 +1282,7 @@ Clobbers r0, r3
 _tcfa:
 mov r0, #0
 add r3, r3, #4 /* skip over link pointer, now points to length */
-ldrb r0, {r3} /* Retrieve the length+flags */
+ldrb r0, [r3] /* Retrieve the length+flags */
 and r0, #F_LENMASK
 add r3, r3, r0 /* Move it ahead to the last letter */
 add r3, r3, #4 /* One more to the codeword-ish */
@@ -1322,22 +1322,22 @@ pop {r2,r1} /* length from the top, address of the name underneath */
 
 /* Store the link pointer. */
 ldr r3, =var_HERE
-ldr r3, {r3}
+ldr r3, [r3]
 ldr r0, =var_LATEST
-ldr r0, {r0}
+ldr r0, [r0]
 
-str r0, {r3} /* Write LATEST into the new link pointer at HERE */
+str r0, [r3] /* Write LATEST into the new link pointer at HERE */
 ldr r4, =var_LATEST
-str r3, {r4} /* And write the new HERE into LATEST */
+str r3, [r4] /* And write the new HERE into LATEST */
 add r3, r3, #4 /* Jump over the link pointer. */
 
 /* Length byte and the word itself need storing. */
-strb r2, {r3} /* store the length byte */
+strb r2, [r3] /* store the length byte */
 add r3, r3, #1 /* Move to the start of the string. */
 
 _create_name_loop
-ldrb r5, {r1} /* Load the next letter of the name into r5 */
-strb r5, {r3} /* And write it into the new word block */
+ldrb r5, [r1] /* Load the next letter of the name into r5 */
+strb r5, [r3] /* And write it into the new word block */
 add r1, r1, #1
 add r3, r3, #1
 
@@ -1356,7 +1356,7 @@ and r3, r3, r5
 
 /* And then store it */
 ldr r1, =var_HERE
-str r3, {r1}
+str r3, [r1]
 NEXT
 
 
@@ -1374,10 +1374,10 @@ NEXT
 
 _comma:
 ldr r3, =var_HERE
-ldr r1, {r3} /* HERE value is in r1, address in r3 */
-str r0, {r1} /* Store the specified value at HERE */
+ldr r1, [r3] /* HERE value is in r1, address in r3 */
+str r0, [r1] /* Store the specified value at HERE */
 add r1, r1, #4 /* Update the HERE value */
-str r1, {r3} /* And store it back */
+str r1, [r3] /* And store it back */
 
 
 name_LBRAC:
@@ -1390,7 +1390,7 @@ LBRAC:
 code_LBRAC:
 ldr r0, =var_STATE
 mov r1, #0
-str r1, {r0} /* Update the STATE to 0 */
+str r1, [r0] /* Update the STATE to 0 */
 NEXT
 
 name_RBRAC:
@@ -1403,7 +1403,7 @@ RBRAC:
 code_RBRAC:
 ldr r0, =var_STATE
 mov r1, #1
-str r1, {r0} /* Update the STATE to 1 */
+str r1, [r0] /* Update the STATE to 1 */
 NEXT
 
 
@@ -1462,11 +1462,11 @@ IMMEDIATE:
 .word code_IMMEDIATE
 code_IMMEDIATE:
 ldr r3, =var_LATEST
-ldr r3, {r3}
+ldr r3, [r3]
 add r3, r3, #4 /* Aim at length byte */
-ldrb r4, {r3}  /* Get that byte */
+ldrb r4, [r3]  /* Get that byte */
 eor r4, r4, #F_IMMED /* Toggle the IMMEDIATE bit */
-strb r4, {r3}  /* And write it back */
+strb r4, [r3]  /* And write it back */
 NEXT
 
 
@@ -1480,9 +1480,9 @@ HIDDEN:
 code_HIDDEN:
 pop {r3} /* Address of the dictionary entry. */
 add r3, r3, #4 /* Point at the length byte */
-ldrb r4, {r3}  /* Load it */
+ldrb r4, [r3]  /* Load it */
 eor r4, r4, #F_HIDDEN /* Toggle the HIDDEN bit */
-strb r4, {r3}
+strb r4, [r3]
 NEXT
 
 
@@ -1510,7 +1510,7 @@ name_TICK:
 TICK:
 .word code_TICK
 code_TICK:
-ldr r0, {r11} /* Get the address of the next word. */
+ldr r0, [r11] /* Get the address of the next word. */
 add r11, r11, #4 /* Skip it. */
 push {r0} /* Push the address */
 NEXT
@@ -1534,7 +1534,7 @@ BRANCH:
 .word code_BRANCH
 code_BRANCH:
 _branch_inner:
-ldr r0, {r11} /* Get the value at I */
+ldr r0, [r11] /* Get the value at I */
 add r11, r11, r0 /* And offset by it, since it's the branch amount. */
 /* Beautiful and cunning. */
 NEXT
@@ -1567,7 +1567,7 @@ name_LITSTRING:
 LITSTRING:
 .word code_LITSTRING
 code_LITSTRING:
-ldr r0, {r11} /* Get the length of the string from the next word */
+ldr r0, [r11] /* Get the length of the string from the next word */
 add r11, r11, #4 /* And skip over it */
 push {r0,r11} /* Push the length (r0) and the address of the start of the string (r11) */
 add r11, r11, r0 /* Skip past the string */
@@ -1598,7 +1598,7 @@ NEXT
 
 _tell:
 push {lr}
-ldrb r0, {r9} /* Get the next character */
+ldrb r0, [r9] /* Get the next character */
 bl _emit /* Clobbers r0-r2, r7 */
 add r9, r9, #1
 sub r8, r8 #1
@@ -1636,7 +1636,7 @@ bl _word /* r0 has the address, r1 the length */
 /* Not a literal number (at least not yet) */
 ldr r2, =interpret_is_lit
 ldr r3, #0
-str r3, {r2}
+str r3, [r2]
 
 /* Adjust for the differences between my FIND and WORD. TODO: Clean this up. */
 mov r2, r1
@@ -1650,7 +1650,7 @@ cmp r0, #0
 
 /* In the dictionary. Check if it's an IMMEDIATE codeword */
 add r2, r0, #4 /* r2 is the address of the dictionary header's length byte */
-ldrb r9, {r2} /* Set aside the actual value of that word */
+ldrb r9, [r2] /* Set aside the actual value of that word */
 
 /* _TCFA expects the address in r3 */
 mov r3, r0
@@ -1667,7 +1667,7 @@ _interpret_not_in_dict:
 /* Not in the dictionary, so assume it's a literal number. */
 ldr r9, =interpret_is_lit
 mov r8, #1
-str r8, {r9}
+str r8, [r9]
 
 /* _NUMBER expects the length in r2 and the address in r3. */
 /* It returns the number in r0 and the number unparsed in r2. */
@@ -1684,7 +1684,7 @@ _interpret_compile_check:
 /* Are we compiling or executing? */
 
 ldr r4, =var_STATE
-ldr r4, {r4}
+ldr r4, [r4]
 cmp r4, #0
   beq _interpret_execute /* Executing, so jump there */
 
@@ -1692,7 +1692,7 @@ cmp r4, #0
 bl _comma /* The word lives in r0, which is what _comma wants. */
 
 ldr r9, =interpret_is_lit
-ldr r9, {r9}
+ldr r9, [r9]
 cmp r9, #0
   beq _interpret_end /* Not a literal, so done. */
 
@@ -1705,7 +1705,7 @@ _interpret_execute:
 /* Executing, run the word. */
 
 ldr r9, =interpret_is_lit
-ldr r9, {r9}
+ldr r9, [r9]
 cmp r9, #0
   bgt _interpret_push_literal
 
@@ -1715,7 +1715,7 @@ This never returns, but the codeword will eventually call NEXT,
 which will reenter the loop in QUIT
 */
 
-ldr r0, {r0}
+ldr r0, [r0]
 bx r0
 
 
@@ -1731,7 +1731,7 @@ _interpret_illegal_number:
 
 ldr r3, =errmsg
 ldr r2, =errmsglen
-ldr r2, {r2}
+ldr r2, [r2]
 bl _tell
 mov r0, #0x0a /*  newline */
 bl _emit
@@ -1759,7 +1759,7 @@ CHAR:
 .word code_CHAR
 code_CHAR:
 bl _word /* Address in r0 */
-ldrb r0, {r0} /* Get the letter */
+ldrb r0, [r0] /* Get the letter */
 push {r0} /* push it */
 NEXT
 
@@ -1774,7 +1774,7 @@ EXECUTE:
 .word code_EXECUTE
 code_EXECUTE:
 pop {r0} /* Get the execution token (a pointer) off the stack */
-ldr r0, {r0} /* Load the value stored there */
+ldr r0, [r0] /* Load the value stored there */
 bx r0 /* And jump there */
 NEXT
 
@@ -1790,12 +1790,12 @@ _start:
 startup:
 /* Set up some globals */
 ldr r0, =return_stack_top
-str sp, {r0}
+str sp, [r0]
 mov r12, sp
 sub sp, sp, #4096 /* Down by 1K */
 
 ldr r0, =var_S0
-str sp, {r0}
+str sp, [r0]
 
 /* And launch the interpreter */
 ldr r0, =QUIT

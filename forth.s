@@ -700,9 +700,6 @@ mov r0, var_STATE
 push {r0}
 NEXT
 
-var_STATE:
-.word 0
-
 
 name_LATEST:
 .word name_STATE
@@ -716,8 +713,6 @@ mov r0, var_LATEST
 push {r0}
 NEXT
 
-var_LATEST:
-.word name_EXECUTE
 
 name_HERE:
 .word name_LATEST
@@ -730,9 +725,6 @@ code_HERE:
 mov r0, var_HERE
 push {r0}
 NEXT
-
-var_HERE:
-.word init_HERE
 
 
 
@@ -748,9 +740,6 @@ mov r0, var_S0
 push {r0}
 NEXT
 
-var_S0:
-.word 0
-
 
 name_BASE:
 .word name_S0
@@ -764,9 +753,6 @@ mov r0, var_BASE
 push {r0}
 NEXT
 
-
-var_BASE:
-.word 10
 
 
 name_VERSION:
@@ -964,8 +950,6 @@ push {r0}
 NEXT
 /* TODO - Local echo? */
 
-key_buffer:
-.byte
 
 /* No input, returns a character in r0 */
 /* Clobbers r0-r2 + r7 + lr */
@@ -1074,11 +1058,6 @@ bl _key
 cmp r0, #0x0a /* newline, end of comment */
   beq _word
 b _word_comment
-
-
-_word_buffer:
-.space 30
-
 
 
 
@@ -1743,9 +1722,6 @@ errmsg:
 .ascii "Interpreter error: Unknown word or bad number."
 errmsglen:
 .word 46
-interpret_is_lit:
-.word 0
-
 
 
 /* Odds and ends */
@@ -1781,15 +1757,19 @@ NEXT
 /* EXECUTE needs to be the last word, or the initial value of var_LATEST needs updating. */
 
 
-return_stack_top:
-.word 0
-
 
 .globl _start
 _start:
 startup:
-/* Set up some globals */
+/* Request working space from the OS, using brk(2). */
+/* Currently set to 256K */
+mov r0, #1 lsl 18
+mov r9, r0
+mov r7, #__NR_brk
+
+/* Set up the globals */
 ldr r0, =return_stack_top
+mov sp, r9
 str sp, [r0]
 mov r12, sp
 sub sp, sp, #4096 /* Down by 1K */
@@ -1806,5 +1786,39 @@ cold_start:
 .word QUIT
 
 
+
+
+.data
+
+var_STATE:
+.word 0
+
+var_LATEST:
+.word name_EXECUTE
+
+var_S0:
+.word 0
+
+var_BASE:
+.word 10
+
+key_buffer:
+.byte
+
+_word_buffer:
+.space 30
+
+
+interpret_is_lit:
+.word 0
+
+
+return_stack_top:
+.word 0
+
+
+/* var_HERE must be the last entry in the data segment */
+var_HERE:
+.word var_HERE + 4
 
 .end

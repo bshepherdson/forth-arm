@@ -1107,17 +1107,18 @@ NEXT
 /* Clobbers r0-r2, r6, r7, and lr. */
 _word:
 push {lr}
+_word_top:
 bl _key
 cmp r0, #0x5c /* backslash, the start of a line comment */
 beq _word_comment
 cmp r0, #0x20 /* space, keep searching for real letters */
-beq _word
+beq _word_top
 cmp r0, #0x0d /* carriage return, keep searching */
-beq _word
+beq _word_top
 cmp r0, #0x0a /* newline, keep searching */
-beq _word
+beq _word_top
 cmp r0, #0x09 /* tap, keep searching */
-beq _word
+beq _word_top
 
 /* If we got down here, found a real letter. */
 ldr r6, =_word_buffer
@@ -1415,17 +1416,17 @@ str r3, [r4] /* And write the new HERE into LATEST */
 add r3, r3, #4 /* Jump over the link pointer. */
 
 /* Length byte and the word itself need storing. */
-strb r2, [r3] /* store the length byte */
+strb r1, [r3] /* store the length byte */
 add r3, r3, #1 /* Move to the start of the string. */
 
 _create_name_loop:
-ldrb r5, [r1] /* Load the next letter of the name into r5 */
+ldrb r5, [r2] /* Load the next letter of the name into r5 */
 strb r5, [r3] /* And write it into the new word block */
-add r1, r1, #1
+add r2, r2, #1
 add r3, r3, #1
 
-sub r2, r2, #1
-cmp r2, #0
+sub r1, r1, #1
+cmp r1, #0
   bgt _create_name_loop
 
 /*
@@ -1461,6 +1462,7 @@ ldr r1, [r3] /* HERE value is in r1, address in r3 */
 str r0, [r1] /* Store the specified value at HERE */
 add r1, r1, #4 /* Update the HERE value */
 str r1, [r3] /* And store it back */
+bx lr
 
 
 name_LBRAC:
@@ -1760,7 +1762,7 @@ bl _number
 cmp r2, #0
   bgt _interpret_illegal_number
 
-mov r1, r0
+mov r6, r0
 ldr r0, =LIT /* Set the word to LIT */
 
 _interpret_compile_check:
@@ -1780,7 +1782,7 @@ cmp r9, #0
   beq _interpret_end /* Not a literal, so done. */
 
 /* Literal number in play, so push it too. */
-mov r0, r1 /* Move the literal from r1 to r0 */
+mov r0, r6 /* Move the literal from r1 to r0 */
 bl _comma  /* And push it too. */
 b _interpret_end
 
@@ -1798,8 +1800,7 @@ This never returns, but the codeword will eventually call NEXT,
 which will reenter the loop in QUIT
 */
 
-ldr r0, [r0]
-bx r0
+ldr pc, [r0]
 
 
 _interpret_push_literal:

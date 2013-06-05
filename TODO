@@ -1,1 +1,1 @@
-Weirdness in _word, it doesn't seem to write into the word buffer.
+Segfaulting after executing a number from the stdin. Seems to be building the words just fine. Maybe a problem with switching to stdin, maybe a problem with numbers. Bad state left over from building a new word seems likely. EXIT, SEMICOLON, switching modes?

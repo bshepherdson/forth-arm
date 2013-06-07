@@ -1,1 +1,1 @@
-Segfaulting after executing a number from the stdin. Seems to be building the words just fine. Maybe a problem with switching to stdin, maybe a problem with numbers. Bad state left over from building a new word seems likely. EXIT, SEMICOLON, switching modes?
+Loads the forth.fs library code fine, but . prints 0 every time. I should compare my Forth library code with Jonesforth to look for missing 32-bit quirks.

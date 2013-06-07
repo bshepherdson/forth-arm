@@ -79,8 +79,8 @@ SWAP:
 .word code_SWAP
 code_SWAP:
 pop {r0,r1}
-push {r1}
 push {r0}
+push {r1}
 NEXT
 
 name_DUP:
@@ -254,7 +254,6 @@ push {r0}
 NEXT
 
 
-
 name_ADD:
 .word name_DECR4
 .byte 1
@@ -329,8 +328,7 @@ cmp r2, #0
 _div_nn:
 /* negate numerator, clean return. */
 rsb r0, r0, #0 /* subtract from 0 --> negate */
-ldr lr, =_div_return
-b _div_main
+b _div_trampoline
 
 _div_np:
 /* negate both, negate return */
@@ -347,8 +345,7 @@ cmp r2, #0
 _div_pp:
 /* negate denom, clean return */
 rsb r2, r2, #0
-ldr lr, =_div_return
-b _div_main
+b _div_trampoline
 
 _div_pn:
 /* clean call, negate return */
@@ -369,6 +366,9 @@ adds r0, r0, r0
 .endr
 bx lr
 
+/* A jumping off point that allows easy branching and returning to the _div_return code. */
+_div_trampoline:
+bl _div_main
 _div_return:
 /* push the quotient and remainder in the right order. */
 /* quotient on the top, mod underneath */
@@ -1158,7 +1158,7 @@ b _word_main
 _word_comment:
 bl _key
 cmp r0, #0x0a /* newline, end of comment */
-  beq _word
+  beq _word_top
 b _word_comment
 
 

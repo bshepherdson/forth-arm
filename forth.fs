@@ -1,6 +1,6 @@
 \ Forth ARM
-\ (c) 2012 Braden Shepherdson
-\ Version 3
+\ Copyright 2013 Braden Shepherdson
+\ Version 1
 
 \ This is a Forth system
 \ designed to run on ARMv6
@@ -8,7 +8,9 @@
 \ source code file and a binary
 \ executable.
 
-: /MOD 2DUP MOD -ROT / ;
+: / /MOD SWAP DROP ;
+
+: MOD /MOD DROP ;
 
 : NL 10 ;
 : BL 32 ;
@@ -261,6 +263,11 @@
     1- \ adjust for S0 on stack
 ;
 
+: ALIGNED ( addr -- addr )
+    3 + 3 INVERT AND
+;
+
+: ALIGN HERE @ ALIGNED HERE ! ;
 
 : C,
     HERE @ !
@@ -280,7 +287,9 @@
     REPEAT
     DROP \ drop the "
     DUP HERE @ SWAP - \ length
-    1- SWAP ! \ set length
+    4-
+    SWAP ! \ set length
+    ALIGN
   ;
 
 : .S_INTERP

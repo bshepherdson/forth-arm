@@ -294,11 +294,97 @@ mul r2, r0, r1
 push {r2}
 NEXT
 
-/* No integer division instructions on the ARM. Can use floating point and convert back, or Euclid's algorithm. */
-/* Leaving unimplemented for now. */
+/* No integer division instructions on the ARM. Using code taken from Stack Overflow. */
+
+name_DIVMOD:
+.word name_MUL
+.byte 4
+.ascii "/MOD"
+.align
+DIVMOD:
+.word code_DIVMOD
+code_DIVMOD:
+pop {r2} /* denominator */
+pop {r0} /* numerator */
+/* This algorithm expects positive numerator, negative, nonzero denominator. */
+/* I will adjust accordingly, and negate afterwards if necessary. */
+/* Division by 0 results in a punch in the face, and syscall to exit with code 8 */
+cmp r2, #0
+  beq _div_by_zero
+
+/* Now there are four cases: */
+/* - p/p -> negate denom, clean return. */
+/* - p/n -> clean call, negate return */
+/* - n/p -> negate both, negate return */
+/* - n/n -> negate num, clean return */
+/* I'm not terribly confident in these, tests required. */
+
+cmp r0, #0
+  bge _div_p
+
+_div_n:
+cmp r2, #0
+  ble _div_np
+
+_div_nn:
+/* negate numerator, clean return. */
+rsb r0, r0, #0 /* subtract from 0 --> negate */
+ldr lr, =_div_return
+b _div_main
+
+_div_np:
+/* negate both, negate return */
+rsb r0, r0, #0
+rsb r2, r2, #0
+bl _div_main
+rsb r0, r0, #0
+b _div_return
+
+_div_p:
+cmp r2, #0
+  ble _div_pn
+
+_div_pp:
+/* negate denom, clean return */
+rsb r2, r2, #0
+ldr lr, =_div_return
+b _div_main
+
+_div_pn:
+/* clean call, negate return */
+bl _div_main
+rsb r0, r0, #0
+b _div_return
+
+
+_div_main:
+/* r0 = num, r2 = denom. r0 +ve, r2 -ve. quot in r0, rem in r1. */
+
+mov r1, #0
+adds r0, r0, r0
+.rept 32
+  adcs r1, r2, r1, lsl #1
+  subcc r1, r1, r2
+  adcs r0, r0, r0
+.endr
+bx lr
+
+_div_return:
+/* push the quotient and remainder in the right order. */
+/* quotient on the top, mod underneath */
+push {r0,r1}
+NEXT
+
+
+
+_div_by_zero:
+mov r0, #8
+mov r7, #__NR_exit
+swi #0
+
 
 name_SHL:
-.word name_MUL
+.word name_DIVMOD
 .byte 2
 .ascii "<<"
 .align
@@ -932,6 +1018,7 @@ NEXT
 .set __NR_read, 3
 .set __NR_write, 4
 .set __NR_brk, 45
+.set __NR_exit, 93
 
 .set stdin, 1
 .set stdout, 2

@@ -1,4 +1,4 @@
-: foo 64 + EMIT ;
-\ 1 foo 2 foo 3 foo
-
+68 EMIT
+: foo 72 EMIT ;
+foo
 

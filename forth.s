@@ -1118,7 +1118,7 @@ sub r2, r2, #1 /* Decrement the length */
 cmp r2, #0
   bne _number_loop /* If C is nonzero, jump over error handler. */
 
-/* C is 0, the string was just '-' */
+/* length is 0, the string was just '-' */
 pop {r1} /* Remove the negation flag from the stack. */
 mov r2, #1 /* Unparsed characters = 1 */
 bx lr
@@ -1718,7 +1718,7 @@ ldr pc, [r0]
 
 _interpret_push_literal:
 /* Executing a literal means pushing it onto the stack. */
-push {r1}
+push {r6}
 b _interpret_end
 
 _interpret_illegal_number:

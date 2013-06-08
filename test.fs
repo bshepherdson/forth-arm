@@ -1,6 +1,3 @@
-: foo WITHIN IF 65 EMIT ELSE 66 EMIT THEN ;
--3 0 5 foo CR
-0  0 5 foo CR
-3  0 5 foo CR
-5  0 5 foo CR
+: foo 10 /MOD DEBUG ?DUP IF RECURSE THEN 65 + EMIT ;
+65 foo
 

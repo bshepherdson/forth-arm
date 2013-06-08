@@ -194,7 +194,7 @@ name_QDUP:
 QDUP:
 .word code_QDUP
 code_QDUP:
-pop {r0}
+ldr r0, [sp]
 cmp r0, #0
 pushne {r0}
 NEXT

@@ -1,3 +1,3 @@
 \ comment here
-67 EMIT
+: foo 65 67 < IF 65 EMIT ELSE 66 EMIT THEN ;
 

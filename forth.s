@@ -194,9 +194,9 @@ name_QDUP:
 QDUP:
 .word code_QDUP
 code_QDUP:
-ldr r0, [sp]
+pop {r0}
 cmp r0, #0
-pusheq {r0}
+pushne {r0}
 NEXT
 
 
@@ -381,6 +381,7 @@ _div_by_zero:
 mov r0, #8
 mov r7, #__NR_exit
 swi #0
+
 
 
 name_SHL:
@@ -622,8 +623,8 @@ NEXT
 
 name_ZGE:
 .word name_ZLE
-.byte 
-.ascii "ZGE"
+.byte 3
+.ascii "0>="
 .align
 ZGE:
 .word code_ZGE
@@ -772,10 +773,72 @@ sub r2, r2, r1
 str r2, [r0]
 NEXT
 
+name_STOREBYTE:
+.word name_SUBSTORE
+.byte 2
+.ascii "C!"
+.align
+STOREBYTE:
+.word code_STOREBYTE
+code_STOREBYTE:
+pop {r0,r1}
+strb r1, [r0]
+NEXT
+
+name_FETCHBYTE:
+.word name_STOREBYTE
+.byte 2
+.ascii "C@"
+.align
+FETCHBYTE:
+.word code_FETCHBYTE
+code_FETCHBYTE:
+pop {r0}
+mov r1, #0
+ldrb r1, [r0]
+push {r1}
+NEXT
+
+name_CCOPY:
+.word name_FETCHBYTE
+.byte 4
+.ascii "C@C!"
+.align
+CCOPY:
+.word code_CCOPY
+code_CCOPY:
+pop {r0,r1} /* source addr, destination addr */
+ldrb r2, [r0]
+strb r2, [r1]
+add r0, r0, #1
+add r1, r1, #1
+push {r0,r1}
+
+name_CMOVE:
+.word name_CCOPY
+.byte 5
+.ascii "CMOVE"
+.align
+CMOVE:
+.word code_CMOVE
+code_CMOVE:
+pop {r4} /* length */
+pop {r1} /* destination address */
+pop {r0} /* source address */
+_cmove_loop:
+ldrb r2, [r0]
+strb r2, [r1]
+add r0, r0, #1
+add r1, r1, #1
+subs r4, r4, #1
+  bgt _cmove_loop
+NEXT
+
+
 
 
 name_STATE:
-.word name_SUBSTORE
+.word name_CMOVE
 .byte 5
 .ascii "STATE"
 .align
@@ -1683,12 +1746,12 @@ NEXT
 
 _tell:
 push {lr}
+_tell_inner:
 ldrb r0, [r9] /* Get the next character */
 bl _emit /* Clobbers r0-r2, r7 */
 add r9, r9, #1
-sub r8, r8, #1
-cmp r8, #0
-  bgt _tell
+subs r8, r8, #1
+  bgt _tell_inner
 pop {pc}
 
 
@@ -1813,20 +1876,15 @@ _interpret_illegal_number:
 /* a number either. Show an error message. */
 /* TODO - Improve the amount of detail in the message. */
 
-ldr r3, =errmsg
-ldr r2, =errmsglen
-ldr r2, [r2]
+ldr r9, =errmsg
+ldr r8, =errmsglen
+ldr r8, [r8]
 bl _tell
 mov r0, #0x0a /*  newline */
 bl _emit
 
 _interpret_end:
 NEXT
-
-errmsg:
-.ascii "Interpreter error: Unknown word or bad number."
-errmsglen:
-.word 46
 
 
 /* Odds and ends */
@@ -1845,9 +1903,20 @@ push {r0} /* push it */
 NEXT
 
 
+name_DEBUG:
+.word name_DEBUG
+.byte 5
+.ascii "DEBUG"
+.align
+DEBUG:
+.word code_DEBUG
+code_DEBUG:
+_debug:
+mov r0, r1
+NEXT
 
 name_EXECUTE:
-.word name_CHAR
+.word name_DEBUG
 .byte 7
 .ascii "EXECUTE"
 .align
@@ -1939,6 +2008,11 @@ cold_start:
 
 
 .data
+
+errmsg:
+.ascii "Interpreter error: Unknown word or bad number."
+errmsglen:
+.word 46
 
 var_STATE:
 .word 0

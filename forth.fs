@@ -152,6 +152,7 @@
 : PICK ( x_u ... x_1 x_0 u --
     x_u ... x_1 x_0 x_u )
     1+     \ skip over u
+    4 *    \ word size
     DSP@ + \ add to DSP
     @      \ fetch
   ;
@@ -174,7 +175,7 @@
 
 \ Strings and numbers
 : U.  ( u -- )
-    BASE @ /MOD \ ( width r q )
+    BASE @ /MOD \ ( r q )
     ?DUP IF \ if q <> 0 then
         RECURSE \ print quot
     THEN
@@ -196,7 +197,7 @@
     WHILE
         DUP @ U. \ print
         SPACE
-        1+       \ move up
+        4+       \ move up
     REPEAT
     DROP
 ;
@@ -260,7 +261,7 @@
 
 : DEPTH ( -- n )
     S0 @ DSP@ -
-    1- \ adjust for S0 on stack
+    4- \ adjust for S0 on stack
 ;
 
 : ALIGNED ( addr -- addr )
@@ -270,7 +271,7 @@
 : ALIGN HERE @ ALIGNED HERE ! ;
 
 : C,
-    HERE @ !
+    HERE @ C!
     1 HERE +! \ Increment HERE
 ;
 
@@ -298,7 +299,7 @@
         KEY
         DUP 34 <>  \ ASCII "
     WHILE
-        OVER ! \ save character
+        OVER C! \ save character
         1+     \ bump address
     REPEAT
     DROP     \ drop the "
@@ -367,6 +368,57 @@
     , \ pointer from ALLOT
     ' EXIT ,
   ;
+
+
+: DUMP ( addr len -- )
+    BASE @ -ROT \ save the current BASE at the bottom of the stack
+    HEX         \ and switch to hex mode
+
+    BEGIN
+        ?DUP \ while len > 0
+    WHILE
+        OVER 8 U.R  \ print the address
+        SPACE
+
+        \ print up to 16 words on this line
+        2DUP     \ addr len addr len
+        1- 15 AND 1+  \ addr len addr linelen
+        BEGIN
+            ?DUP  \ while linelen > 0
+        WHILE
+            SWAP       \ addr len linelen addr
+            DUP C@     \ addr len linelen addr byte
+            2 .R SPACE \ print the byte
+            1+ SWAP 1- \ addr len linelen addr -- addr len addr+1 linelen-1
+        REPEAT
+        DROP ( addr len )
+
+        \ print the ASCII equivalents
+        2DUP 1- 15 AND 1+ \ addr len addr linelen
+        BEGIN
+            ?DUP   \ while linelen > 0
+        WHILE
+            SWAP DUP C@   \ addr len linelen addr byte
+            DUP 32 123 WITHIN IF    \ 32 <= c < 128
+                EMIT
+            ELSE
+                DROP 46 EMIT \ emit a period
+            THEN
+            1+ SWAP 1-   \ addr len linelen addr -- addr len addr+1 linelen-1
+        REPEAT
+        DROP \ addr len
+        CR
+
+        DUP 1- 15 AND 1+ \ addr len linelen
+        TUCK             \ addr linelen len linelen
+        -                \ addr linelen len-linelen
+        >R + R>          \ addr+linelen len-linelen
+    REPEAT
+
+    DROP   \ restore stack
+    BASE ! \ restore saved BASE
+;
+
 
 \ FORGET is a horrible hack to
 \ deallocate memory.

@@ -615,8 +615,8 @@ ZLE:
 code_ZLE:
 pop {r0}
 mov r2, #0
-cmp r0, #0
-addle r2, r2, #1
+rsbs r0, r0, #0
+addpl r2, r2, #1
 push {r2}
 NEXT
 
@@ -1904,7 +1904,7 @@ NEXT
 
 
 name_DEBUG:
-.word name_DEBUG
+.word name_CHAR
 .byte 5
 .ascii "DEBUG"
 .align

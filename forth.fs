@@ -252,12 +252,19 @@
 \ c a b WITHIN ->
 \   a <= c & c < b
 : WITHIN ( c a b -- ? )
-    >R \ c a
-    2DUP < IF
-        2DROP FALSE EXIT
+    -ROT    ( b c a )
+    OVER    ( b c a c )
+    <= IF
+        > IF   ( b c -- )
+            TRUE
+        ELSE
+            FALSE
+        THEN
+    ELSE
+        2DROP
+        FALSE
     THEN
-    DROP R> \ c b
-    < ;
+;
 
 : DEPTH ( -- n )
     S0 @ DSP@ -

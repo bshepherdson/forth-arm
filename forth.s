@@ -834,11 +834,76 @@ subs r4, r4, #1
   bgt _cmove_loop
 NEXT
 
+/* Some halfword read/write functions */
+name_FETCHHALFWORD:
+.word name_CCOPY
+.byte 2
+.ascii "H@"
+.align
+FETCHHALFWORD:
+.word code_FETCHHALFWORD
+code_FETCHHALFWORD:
+pop {r0} /* the address */
+ldrh r0, [r0]
+push {r0}
+NEXT
+
+name_FETCHHALFWORD_SIGNED:
+.word name_FETCHHALFWORD
+.byte 3
+.ascii "H@S"
+.align
+FETCHHALFWORD_SIGNED:
+.word code_FETCHHALFWORD_SIGNED
+code_FETCHHALFWORD_SIGNED:
+pop {r0}
+ldrsh r0, [r0]
+push {r0}
+NEXT
+
+name_STOREHALFWORD:
+.word name_FETCHHALFWORD_SIGNED
+.byte 2
+.ascii "H!"
+.align
+STOREHALFWORD:
+.word code_STOREHALFWORD
+code_STOREHALFWORD:
+pop {r0,r1} /* the address and the value */
+strh r1, [r0]
+NEXT
+
+
+name_BITSWAPHALFWORD:
+.word name_STOREHALFWORD
+.byte 8
+.ascii "BITSWAPH"
+.align
+BITSWAPH:
+.word code_BITSWAPH
+code_BITSWAPH:
+pop {r0}
+rev16 r0, r0
+push {r0}
+NEXT
+
+name_BITSWAPHALFWORD_SIGNED:
+.word name_BITSWAPHALFWORD
+.byte 9
+.ascii "BITSWAPHS"
+.align
+BITSWAPHS:
+.word code_BITSWAPHS
+code_BITSWAPHS:
+pop {r0}
+revsh r0, r0
+push {r0}
+NEXT
 
 
 
 name_STATE:
-.word name_CMOVE
+.word name_BITSWAPHALFWORD_SIGNED
 .byte 5
 .ascii "STATE"
 .align
@@ -1668,13 +1733,55 @@ According to the jonesforth commentary, TICK can be written
 with WORD, FIND and >CFA so that it'll run in immediate mode too.
 */
 
+/* System call primitives. Expect parameters on the stack in reverse order (ie. a3 a2 a1 syscallnumber ). Pushes r0, the return value, even for void syscalls */
+name_SYSCALL1:
+.word name_TICK
+.byte 8
+.ascii "SYSCALL1"
+.align
+SYSCALL1:
+.word code_SYSCALL1
+code_SYSCALL1:
+pop {r7}
+pop {r0}
+swi #0
+push {r0}
+NEXT
+
+name_SYSCALL2:
+.word name_SYSCALL1
+.byte 8
+.ascii "SYSCALL2"
+.align
+SYSCALL2:
+.word code_SYSCALL2
+code_SYSCALL2:
+pop {r7}
+pop {r0, r1}
+swi #0
+push {r0}
+NEXT
+
+name_SYSCALL3:
+.word name_SYSCALL2
+.byte 8
+.ascii "SYSCALL3"
+.align
+SYSCALL3:
+.word code_SYSCALL3
+code_SYSCALL3:
+pop {r7}
+pop {r0, r1, r2}
+swi #0
+push {r0}
+NEXT
 
 
 
 /* Branching primitives */
 
 name_BRANCH:
-.word name_TICK
+.word name_SYSCALL3
 .byte 6
 .ascii "BRANCH"
 .align
@@ -1978,9 +2085,9 @@ ldr r3, =argv
 add r1, r1, #4 /* jump over the command name */
 str r1, [r3]
 
-/* Call malloc to request space for HERE. Currently 256K */
+/* Call malloc to request space for HERE. Currently 1M */
 mov r0, #1
-lsl r0, r0, #18
+lsl r0, r0, #20
 bl malloc
 /* r0 now contains the pointer to the memory */
 ldr r1, =var_HERE

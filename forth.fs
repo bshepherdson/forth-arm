@@ -475,6 +475,7 @@
   DOCOL ,    \ compile DOCOL
   ' LIT ,    \ compile LIT
   R> ,       \ compile address
+  ' CELLS ,     \ multiply the index into cells
   ' + ,      \ add index
   ' EXIT ,   \ compile EXIT
 ;

@@ -2031,8 +2031,8 @@ EXECUTE:
 .word code_EXECUTE
 code_EXECUTE:
 pop {r0} /* Get the execution token (a pointer) off the stack */
-ldr r0, [r0] /* Load the value stored there */
-bx r0 /* And jump there */
+ldr r2, [r0] /* Load the value stored there */
+bx r2 /* And jump there */
 NEXT
 
 /* EXECUTE needs to be the last word, or the initial value of var_LATEST needs updating. */

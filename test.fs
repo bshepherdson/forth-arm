@@ -1,3 +1,5 @@
-: foo 10 /MOD DEBUG ?DUP IF RECURSE THEN 65 + EMIT ;
-65 foo
-
+: foo 65 EMIT ;
+VARIABLE v
+: bar ['] foo ;
+bar v !
+v @ EXECUTE

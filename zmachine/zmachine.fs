@@ -248,24 +248,190 @@ INIT_PRINTING
 
 
 
+\ Metadata for the interpreter lives in three Forth variables and the stack.
+\ Allocating space for the stack. 1K words.
+1024 CELLS DUP ALLOT +
+VARIABLE STACKTOP
+STACKTOP !
+
+\ Use of the stack by routines:
+\ SP points at the present stack value.
+\ A frame pointer (FP) points at the frame data for the last routine call.
+\ So with some extra values on the stack, we might have:
+
+\ local4
+\ local3
+\ local2
+\ local1
+\ old_FP
+\ old_SP
+\ return_target
+\ return_address <-- SP starts pointing here. FP points here.
+\ some value
+\ some value <-- SP points here now.
+
+\ So local N is at FP + 4n + 12 (real address)
+\ And on a return, old_FP, old_SP and the return address are loaded.
+
+\ The return_target is the location to store the result of the computation in. It's a native word whose value is either -1 for nowhere or the argument value when it is defined.
+
+\ These are all real addresses.
+VARIABLE PC
+VARIABLE SP
+VARIABLE FP
+
+STACKTOP @ SP !
+0 FP !
+\ PC is set during startup.
+
+\ Some convenience words for handling the PC.
+: PC++ 1 PC +! ;
+: PC+2 2 PC +! ;
+\ Gets the byte at PC and advances PC by 1.
+: PC@ ( -- b ) PC @ RB PC++ ;
+: PC@W ( -- w ) PC @ RW PC+2 ;
+
+
+
+\ Interpreters
+\ Instruction encoding is a complex PITA.
+\ Arguments come in three types: large constant, small constant, variable.
+\ Generally, the arguments are delivered on the stack to the implementing function.
+\ This is easy for 0OP, 1OP and 2OP instructions.
+\ For VAR instructions, the number of arguments is the topmost item of the stack.
+
+\ There is a master interpreter in ZINTERP. It computes the form of instruction
+\ and hands off to ZINTERP_SHORT, ZINTERP_LONG, and ZINTERP_VARIABLE.
+\ These sub-interpreters collect the argument types, and place them on the stack before
+\ calling ZINTERP_0OP, ZINTERP_1OP, or ZINTERP_2OP.
+\ Variable form and arg number are special.
+\ Eventually the actual instruction handling functions are called.
+
+\ Argument handlers
+\ NB: These store values on the interpreter's stack in Z-machine order, not host order.
+\ This is in case of programs trying to access them directly.
+: PUSH ( val -- ) 4 SP -! SP @ WW ;
+: POP ( -- val )  SP @ RW 4 SP +! ;
+
+\ Turns a local number into a real address.
+: LOCAL ( num -- ra ) 4 * 12 + FP @ + ;
+\ Turns a global number into a real address.
+: GLOBAL ( num -- ra ) 16 - 2 *    HDR_GLOBAL_VARIABLES BA RW   + BA ;
+
+: SMALLCONSTANT ( -- val ) PC@ ;
+: LARGECONSTANT ( -- val ) PC@W ;
+
+: GETARG ( type -- arg )
+    CASE
+    0 OF LARGECONSTANT ENDOF
+    1 OF SMALLCONSTANT ENDOF
+    2 OF
+        SMALLCONSTANT ( var )
+        DUP 0= IF
+            DROP POP
+        ELSE
+            DUP 16 < IF
+                LOCAL RW
+            ELSE
+                GLOBAL RW
+            THEN
+        THEN
+    ENDOF
+    ENDCASE
+;
+
+\ By default, variables and large constants are read unsigned.
+\ Any instruction that wants to use signed values must call SIGN on its arguments.
+: SIGN ( uw -- sw ) BITSWAPHS BITSWAPHS ;
+
+
+: ZINTERP_SHORT ( opcode -- )
+    DUP 4 >> 3 AND DUP 3 = IF ( opcode type )
+        DROP ( opcode )
+        INTERP_0OP
+    ELSE
+        GETARG SWAP ( arg opcode )
+        INTERP_1OP
+    THEN
+;
+
+\ Operand count is always 2OP in long form.
+\ Bit 6 gives the first type, bit 5 the second. 0 = small constant, 1 = variable.
+: ZINTERP_LONG ( opcode -- )
+    DUP 6 BIT ( opcode type1 )
+    LONGARG   ( opcode arg1 )
+    OVER 5 BIT ( opcode arg1 type2 )
+    LONGARG    ( opcode arg1 arg2 )
+    SWAP ROT   ( arg2 arg1 opcode )
+    ZINTERP_2OP
+;
+
+\ Operand count is either VAR or 2OP for variable form.
+\ We resolve this by computing it as though it were VAR, and then checking the opcode's
+\ bit 5. If it is 0, we drop the arg count and call ZINTERP_2OP, otherwise ZINTERP_VAR.
+: ZINTERP_VARIABLE ( opcode -- )
+    >R 0 >R PC@ ( typebyte RR opcode argc )
+    DUP 6 >> DUP 3 < IF ( typebyte type1 )
+        R> 1+ >R \ increment argc
+        GETARG ( typebyte arg1 )
+        SWAP   ( arg1 typebyte )
+
+        DUP 4 >> 3 AND DUP 3 < IF ( arg1 typebyte type2 )
+            R> 1+ >R \ inc argc
+            GETARG ( arg1 typebyte arg2 )
+            -ROT   ( arg2 arg1 typebyte )
+
+            DUP 2 >> 3 AND DUP 3 < IF ( arg2 arg1 typebyte type3 )
+                R> 1+ >R \ inc argc
+                GETARG ( arg2 arg1 typbyte arg3 )
+                SWAP >R ( arg2 arg1 arg3 )
+                -ROT    ( arg3 arg2 arg1 )
+                R>      ( arg3 arg2 arg1 typebyte )
+
+                3 AND DUP 3 < IF ( arg3 arg2 arg1 type4 )
+                    R> 1+ >R \ inc argc
+                    GETARG  ( arg3 arg2 arg1 arg4 )
+                    SWAP >R ( arg3 arg2 arg4 )
+                    -ROT    ( arg4 arg3 arg2 )
+                    R>      ( arg4 arg3 arg2 arg1 )
+                    0       \ dummy typebyte for the below ( a4 a3 a2 a1 dummy )
+                THEN
+            THEN
+        THEN
+    THEN
+    DROP \ drop the typebyte: ( args... RR opcode argc )
+    R> R> \ retrieve the other values: ( args.. argc opcode )
+
+    DUP BIT 5 IF
+        \ Bit 5 is set, this is a VAR instruction.
+        ZINTERP_VAR
+    ELSE
+        \ This is a 2OP instruction. Drop the count and call out.
+        NIP ( arg2 arg1 opcode )
+        ZINTERP_2OP
+    THEN
+;
+
+
+\ START HERE: Need to write the ZINTERP_0OP, 1OP, 2OP and VAR dispatchers, and then start writing instruction handlers. This is the hairy head-scratching work done for instruction decoding.
+
+
+\ The master interpreter.
+: ZINTERP ( -- )
+    PC@
+    DUP 6 >>
+    DUP 3 = IF
+        DROP ZINTERP_VARIABLE
+    ELSE
+        2 = IF
+            ZINTERP_SHORT
+        ELSE
+            ZINTERP_LONG
+        THEN
+    THEN
+;
+
+
 \ Testing
 S" zmachine/Zork1.z3" LOAD_STORY
-81944 BA PRINT_STRING
-
-\ 5385
-\ 0101 0011 1000 0101
-\ 0 10100 11100 00101
-\   20    28    5
-
-\ 183b
-\ 0001 1000 0011 1011
-\ 0 00110 00001 11011
-\   6     1     27
-
-\ Yep, 5, 6, 1, 27 = literal, 00001 11011, that is, 00 0011 1011 = 0x3b = ASCII ;
-
-\ 8020
-\ 1000 0000 0010 0000
-\ 1 00000 00001 00000
-\ space, then abbrev 1,0: "the "
 

@@ -153,7 +153,7 @@ INIT_A2  \ Consumes it to populate the table.
 \ Handles a literal char
 : PRINT_LITERAL ( zchar -- )
     LITERAL_ACTIVE @ CASE
-    1 OF LITERAL_CHAR ! ENDOF
+    1 OF LITERAL_CHAR ! 2 LITERAL_ACTIVE ! ENDOF
     2 OF LITERAL_CHAR @ 5 << OR EMIT   0 LITERAL_ACTIVE ! 0 LITERAL_CHAR ! ENDOF
     ENDCASE
 ;
@@ -250,5 +250,22 @@ INIT_PRINTING
 
 \ Testing
 S" zmachine/Zork1.z3" LOAD_STORY
-68562 BA PRINT_STRING
+81944 BA PRINT_STRING
+
+\ 5385
+\ 0101 0011 1000 0101
+\ 0 10100 11100 00101
+\   20    28    5
+
+\ 183b
+\ 0001 1000 0011 1011
+\ 0 00110 00001 11011
+\   6     1     27
+
+\ Yep, 5, 6, 1, 27 = literal, 00001 11011, that is, 00 0011 1011 = 0x3b = ASCII ;
+
+\ 8020
+\ 1000 0000 0010 0000
+\ 1 00000 00001 00000
+\ space, then abbrev 1,0: "the "
 

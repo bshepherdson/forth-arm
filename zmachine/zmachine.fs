@@ -322,6 +322,7 @@ STACKTOP @ SP !
 : LARGECONSTANT ( -- val ) PC@W ;
 
 : GETARG ( type -- arg )
+    ." Getarg for type " .. CR
     CASE
     0 OF LARGECONSTANT ENDOF
     1 OF SMALLCONSTANT ENDOF
@@ -331,7 +332,8 @@ STACKTOP @ SP !
             DROP POP
         ELSE
             DUP 16 < IF
-                LOCAL RW
+                ." Reading local " .. 
+                LOCAL ." at " .. RW
             ELSE
                 GLOBAL RW
             THEN
@@ -345,15 +347,44 @@ STACKTOP @ SP !
 : SIGN ( uw -- sw ) BITSWAPHS BITSWAPHS ;
 
 
+: ZINTERP_0OP ( opcode -- )
+    ." 0OP: " . CR
+;
+
+: ZINTERP_1OP ( arg opcode -- )
+    ." 1OP: " . . CR
+;
+
+: ZINTERP_2OP ( arg2 arg1 opcode -- )
+    ." 2OP: " . . . CR
+;
+
+: ZINTERP_VAR ( args... n opcode -- )
+    ." VAR: " .
+    DUP . ." args: "
+    BEGIN
+        DUP 0>
+    WHILE
+        SWAP . 1-
+    REPEAT
+    CR
+;
+
+
 : ZINTERP_SHORT ( opcode -- )
     DUP 4 >> 3 AND DUP 3 = IF ( opcode type )
         DROP ( opcode )
-        INTERP_0OP
+        ZINTERP_0OP
     ELSE
         GETARG SWAP ( arg opcode )
-        INTERP_1OP
+        ZINTERP_1OP
     THEN
 ;
+
+
+\ Retrieves arguments based on the long form types.
+\ 0 becomes 1 for small constant, 1 becomes 2 for variable.
+: LONGARG ( type -- arg ) 1+ GETARG ;
 
 \ Operand count is always 2OP in long form.
 \ Bit 6 gives the first type, bit 5 the second. 0 = small constant, 1 = variable.
@@ -394,12 +425,12 @@ STACKTOP @ SP !
                     SWAP >R ( arg3 arg2 arg4 )
                     -ROT    ( arg4 arg3 arg2 )
                     R>      ( arg4 arg3 arg2 arg1 )
-                    0       \ dummy typebyte for the below ( a4 a3 a2 a1 dummy )
+                    0 0     \ dummy typebyte and type for the below ( a4 a3 a2 a1 dummy1 dummy2 )
                 THEN
             THEN
         THEN
     THEN
-    DROP \ drop the typebyte: ( args... RR opcode argc )
+    DROP DROP \ drop the typebyte: ( args... RR opcode argc )
     R> R> \ retrieve the other values: ( args.. argc opcode )
 
     DUP BIT 5 IF
@@ -412,8 +443,6 @@ STACKTOP @ SP !
     THEN
 ;
 
-
-\ START HERE: Need to write the ZINTERP_0OP, 1OP, 2OP and VAR dispatchers, and then start writing instruction handlers. This is the hairy head-scratching work done for instruction decoding.
 
 
 \ The master interpreter.
@@ -434,4 +463,11 @@ STACKTOP @ SP !
 
 \ Testing
 S" zmachine/Zork1.z3" LOAD_STORY
+
+8 CELLS ALLOT
+DUP FP !
+16 + 18 BITSWAPH SWAP ! \ store 18 in Local 1
+
+20159 BA PC ! ZINTERP
+
 

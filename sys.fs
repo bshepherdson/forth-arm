@@ -12,3 +12,7 @@
 \ int close(fd) -- returns 1 on success and 0 on failure
 : CLOSE ( fd -- ? ) 6 SYSCALL1 NOT ;
 
+
+
+: PROCESS_EXIT ( code -- ) 93 SYSCALL1 ;
+

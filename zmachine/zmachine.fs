@@ -243,6 +243,17 @@ VARIABLE PRINT_STRING_FORWARD
     INIT_STRINGS
 ;
 
+\ Returns the number of bytes long a string is.
+: STRLEN ( ra -- uw )
+    0
+    BEGIN
+        OVER RW 15 BIT NOT
+    WHILE ( str len )
+        2 + SWAP 2 + SWAP
+    REPEAT
+    NIP ( len )
+;
+
 : INIT_PRINTING LIT PRINT_STRING PRINT_STRING_FORWARD ! ;
 INIT_PRINTING
 
@@ -265,15 +276,13 @@ STACKTOP !
 \ local1
 \ old_FP
 \ old_SP
-\ return_target
 \ return_address <-- SP starts pointing here. FP points here.
 \ some value
 \ some value <-- SP points here now.
 
-\ So local N is at FP + 4n + 12 (real address)
+\ So local N is at FP + 4n + 8 (real address)
 \ And on a return, old_FP, old_SP and the return address are loaded.
 
-\ The return_target is the location to store the result of the computation in. It's a native word whose value is either -1 for nowhere or the argument value when it is defined.
 
 \ These are all real addresses.
 VARIABLE PC
@@ -314,7 +323,7 @@ STACKTOP @ SP !
 : POP ( -- val )  SP @ RW 4 SP +! ;
 
 \ Turns a local number into a real address.
-: LOCAL ( num -- ra ) 4 * 12 + FP @ + ;
+: LOCAL ( num -- ra ) 4 * 8 + FP @ + ;
 \ Turns a global number into a real address.
 : GLOBAL ( num -- ra ) 16 - 2 *    HDR_GLOBAL_VARIABLES BA RW   + BA ;
 
@@ -332,8 +341,7 @@ STACKTOP @ SP !
             DROP POP
         ELSE
             DUP 16 < IF
-                ." Reading local " .. 
-                LOCAL ." at " .. RW
+                LOCAL RW
             ELSE
                 GLOBAL RW
             THEN
@@ -347,8 +355,121 @@ STACKTOP @ SP !
 : SIGN ( uw -- sw ) BITSWAPHS BITSWAPHS ;
 
 
+
+\ Instruction helpers
+
+\ Stores the value on the stack into the target given at PC.
+: STORE ( val -- )
+    PC@ ( val target -- )
+    DUP 0= IF
+        DROP PUSH
+    ELSE
+        DUP 16 < IF
+            LOCAL WW
+        ELSE
+            GLOBAL WW
+        THEN
+    THEN
+;
+
+
+\ Returns from a routine.
+\ Return address from the stack points at the last byte of the call instruction, which gives the storage byte for the return target.
+: RETURN ( val -- )
+    FP     @ PC !
+    FP 4+  @ SP !
+    FP 8 + @ FP !
+    STORE
+;
+
+
+\ Branch to another instruction, if the flag matches the condition bit.
+: ZBRANCH ( ? -- )
+    0> \ make sure the flag is 0 or 1.
+    PC@ ( ? byte1 )
+    DUP 7 BIT ROT ( byte1 ? ? )
+    = IF ( byte1 )
+        \ Perform the branch
+        \ Check for long vs. short branch offset
+        DUP 6 BIT NOT ( byte1 long? )
+        SWAP 63 AND SWAP ( offset_short long? )
+        IF ( offset_short )
+            \ Long form, load the second byte
+            8 << PC@ OR ( offset )
+        THEN ( offset )
+
+        CASE
+        0 OF 0 RETURN ENDOF
+        1 OF 1 RETURN ENDOF
+
+        2 - PC +!
+        ENDCASE ( )
+    ELSE ( byte1 )
+        \ Not branching. Skip the second byte if necessary
+        6 BIT NOT IF PC++ THEN
+    THEN
+;
+
+
+\ 0OP instructions
+: 0OP_RTRUE ( -- ) 1 RETURN ;
+
+: 0OP_RFALSE ( -- ) 0 RETURN ;
+
+: 0OP_PRINT ( -- )
+    PC @ ( str )
+    DUP PRINT_STRING ( str )
+    STRLEN PC +! ( )
+;
+
+: 0OP_PRINT_RET ( -- )
+    0OP_PRINT
+    1 RETURN
+;
+
+: 0OP_NOP ;
+
+\ TODO - Implement save and restore.
+: 0OP_SAVE ZBRANCH ;
+: 0OP_RESTORE ;
+
+VARIABLE RESTART_FORWARD
+: 0OP_RESTART RESTART_FORWARD @ EXECUTE ;
+
+: 0OP_RET_POPPED POP RETURN ;
+
+: 0OP_POP POP DROP ;
+
+: 0OP_QUIT PROCESS_EXIT ;
+
+: 0OP_NEW_LINE CR ;
+
+\ TODO - Implement
+: 0OP_SHOW_STATUS ;
+
+\ TODO - Implement for real
+: 0OP_VERIFY 1 ZBRANCH ;
+
+14 CELLS ARRAY OPS_0OPS
+: INIT_0OPS ( -- )
+    ['] 0OP_RTRUE       0  OPS_0OPS !
+    ['] 0OP_RFALSE      1  OPS_0OPS !
+    ['] 0OP_PRINT       2  OPS_0OPS !
+    ['] 0OP_PRINT_RET   3  OPS_0OPS !
+    ['] 0OP_NOP         4  OPS_0OPS !
+    ['] 0OP_SAVE        5  OPS_0OPS !
+    ['] 0OP_RESTORE     6  OPS_0OPS !
+    ['] 0OP_RESTART     7  OPS_0OPS !
+    ['] 0OP_RET_POPPED  8  OPS_0OPS !
+    ['] 0OP_POP         9  OPS_0OPS !
+    ['] 0OP_QUIT        10 OPS_0OPS !
+    ['] 0OP_NEW_LINE    11 OPS_0OPS !
+    ['] 0OP_SHOW_STATUS 12 OPS_0OPS !
+    ['] 0OP_VERIFY      13 OPS_0OPS !
+; INIT_0OPS
+
 : ZINTERP_0OP ( opcode -- )
-    ." 0OP: " . CR
+    176 - OPS_0OPS @ EXECUTE
 ;
 
 : ZINTERP_1OP ( arg opcode -- )
@@ -466,7 +587,7 @@ S" zmachine/Zork1.z3" LOAD_STORY
 
 8 CELLS ALLOT
 DUP FP !
-16 + 18 BITSWAPH SWAP ! \ store 18 in Local 1
+16 + 12 BITSWAPH SWAP ! \ store 18 in Local 1
 
 20159 BA PC ! ZINTERP
 

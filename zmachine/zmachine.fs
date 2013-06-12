@@ -411,6 +411,86 @@ STACKTOP @ SP !
 ;
 
 
+\ Object support
+\ v3 specific all up in this shiz
+
+\ Returns unsigned values.
+: PROP_DEFAULTS ( propnum -- value ) 1- 2 * HDR_OBJECT_TABLE + BA RW ;
+
+: OBJ_TABLE_TOP ( -- ra ) HDR_OBJECT_TABLE 62 + BA ;
+
+: OBJ_ADDR ( objnum -- ra ) 1- 9 * OBJ_TABLE_TOP + ;
+
+: PARENT  ( objnum -- ra ) OBJ_ADDR 4+ ;
+: SIBLING ( objnum -- ra ) OBJ_ADDR 5 + ;
+: CHILD   ( objnum -- ra ) OBJ_ADDR 6 + ;
+
+\ Address of the table, not the pointer.
+\ Actually points at the length byte for the short name.
+: OBJ_PROP_TABLE ( objnum -- ra ) OBJ_ADDR 7 + RW ;
+
+: OBJ_SHORT_NAME ( objnum -- ra ) OBJ_PROP_TABLE 1+ ;
+
+\ address of the size byte of the first property
+: OBJ_PROP_TOP ( objnum -- ra )
+    OBJ_PROP_TABLE DUP RB ( table len )
+    2 * 1+
+;
+
+: PROP_SIZE ( prop_ra -- size_in_bytes )
+    RB 5 >> 1+
+;
+
+: PROP_DATA ( prop_ra -- ra' ) 1+ ;
+
+: PROP_NUM ( prop_ra -- n ) RB 31 AND ;
+
+: PROP_NEXT ( prop_ra -- ra' )
+    DUP PROP_SIZE ( ra size )
+    1+ + ( ra' )
+;
+
+\ Takes an xt for the function to apply on the attr
+: ATTR_DO ( obj attr xt[ byte bit -- byte' ] -- )
+    >R \ set aside the xt
+    DUP 3 >> ( obj attr byte )
+    ROT ( attr byte obj )
+    OBJ_ADDR ( attr byte ra )
+    + ( attr ra )
+    SWAP 31 SWAP - ( ra bit )
+    7 AND ( ra bit )
+    OVER RB SWAP ( ra byte bit )
+    R> EXECUTE ( ra byte' )
+    SWAP WB ( )
+;
+: CLEAR_ATTR ( obj attr -- ) ['] CLEARBIT ATTR_DO ;
+: SET_ATTR ( obj attr -- ) ['] SETBIT ATTR_DO ;
+
+: TEST_ATTR ( obj attr -- ? )
+    DUP 3 >> ( obj attr byte )
+    ROT OBJ_ADDR ( attr byte ra )
+    + ( attr ra )
+    SWAP 31 SWAP - ( ra bit )
+    7 AND ( ra bit )
+    SWAP RB ( bit byte )
+    SWAP BIT ( ? )
+;
+
+
+\ Counting up all the APIs for objects that I want.
+\ SIBLING/CHILD/PARENT: obj num -> address of that cell
+\ property length from property address
+\ remove an object from its parent's child chain
+\ print an object's short description
+\ testing, setting and clearing attrs (objnum, attr num)
+\ jin containment
+\ inserting an object into a sibling chain
+\ retrieve a property (obj, prop)
+\ retrieve a property address (obj, prop)
+\ find the next property (obj, prop)
+\ put a property (obj, prop, value)
+\
+
 \ 0OP instructions
 : 0OP_RTRUE ( -- ) 1 RETURN ;
 
@@ -472,8 +552,122 @@ VARIABLE RESTART_FORWARD
     176 - OPS_0OPS @ EXECUTE
 ;
 
+
+
+\ 1OP instructions
+: 1OP_JZ ( arg -- ) 0= ZBRANCH ;
+
+: 1OP_GET_SIBLING ( arg -- ) SIBLING RB DUP STORE 0> ZBRANCH ;
+: 1OP_GET_CHILD   ( arg -- ) CHILD   RB DUP STORE 0> ZBRANCH ;
+: 1OP_GET_PARENT  ( arg -- ) PARENT  RB DUP STORE 0> ZBRANCH ;
+
+: 1OP_GET_PROP_LEN ( arg -- ) PROP_LEN STORE ;
+
+: INCDEC ( var amount -- amount' )
+    SWAP ( amount var )
+    DUP 0= IF
+        DROP POP + DUP PUSH ( amount' )
+    ELSE
+        DUP 16 < IF LOCAL ELSE GLOBAL THEN ( amount ra )
+        DUP ( amount ra ra )
+        RWS ( amount ra val )
+        ROT + ( ra val' )
+        OVER WW ( val' )
+    THEN
+;
+
+: 1OP_INC ( arg -- )  1 INCDEC DROP ;
+: 1OP_DEC ( arg -- ) -1 INCDEC DROP ;
+
+: 1OP_PRINT_ADDR ( ba -- ) BA PRINT_STRING ;
+
+\ 1OP_CALL_1S
+
+: 1OP_REMOVE_OBJ ( obj -- )
+    \ Note this object number and then move up to the parent.
+    DUP PARENT RB ( obj parent )
+    DUP 0> IF \ do nothing if this object is parentless
+        DUP CHILD RB ( obj parent child )
+        ROT ( parent child obj )
+        2DUP = IF ( p c o )
+            NIP ( p o )
+            DUP SIBLING RB ( p o s )
+            ROT CHILD ( o s p_ra )
+            WB ( o )
+            0 OVER SIBLING WB ( o )
+            0 SWAP PARENT WB ( )
+        ELSE ( p c o )
+            \ loop through the sibling chain until we find this object
+            >R ( p c )
+            BEGIN
+                DUP SIBLING RB ( p c s )
+                R> DUP >R ( p c s o )
+                OVER <>
+            WHILE ( p c s )
+                \ No match, keep following the links
+                NIP DUP SIBLING RB ( p c' s' )
+            REPEAT
+            \ ( p c s ) Now s == o, so complete the link.
+            SIBLING RB ( p c s2 )
+            SWAP ( p s2 c )
+            SIBLING WB ( p )
+            DROP ( )
+        THEN
+    ELSE ( obj parent )
+        2DROP
+    THEN
+;
+
+: 1OP_PRINT_OBJ ( obj -- )
+    OBJ_SHORT_NAME PRINT_STRING
+;
+
+: 1OP_RETURN ( val -- ) RETURN ;
+
+\ Address is an offset to apply to the PC. Treat it as signed.
+: 1OP_JUMP ( offset -- )
+    SIGN PC +!
+;
+
+: 1OP_PRINT_PADDR ( pa -- ) PA PRINT_STRING ;
+
+: 1OP_LOAD ( var -- )
+    DUP 0= IF
+        DROP POP
+    ELSE
+        DUP 16 < IF LOCAL ELSE GLOBAL THEN
+        RW
+    THEN
+    STORE
+;
+
+: 1OP_NOT ( val -- )
+    INVERT STORE
+;
+
+16 CELLS ARRAY OPS_1OPS
+: INIT_1OPS ( -- )
+    ['] 1OP_JZ                   0  OPS_1OPS !
+    ['] 1OP_GET_SIBLING          1  OPS_1OPS !
+    ['] 1OP_GET_CHILD            2  OPS_1OPS !
+    ['] 1OP_GET_PARENT           3  OPS_1OPS !
+    ['] 1OP_GET_PROP_LEN         4  OPS_1OPS !
+    ['] 1OP_INC                  5  OPS_1OPS !
+    ['] 1OP_DEC                  6  OPS_1OPS !
+    ['] 1OP_PRINT_ADDR           7  OPS_1OPS !
+    \ ['] 1OP_CALL_1S  8  OPS_1OPS !
+    ['] 1OP_REMOVE_OBJ           9  OPS_1OPS !
+    ['] 1OP_PRINT_OBJ            10 OPS_1OPS !
+    ['] 1OP_RET                  11 OPS_1OPS !
+    ['] 1OP_JUMP                 12 OPS_1OPS !
+    ['] 1OP_PRINT_PADDR          13 OPS_1OPS !
+    ['] 1OP_LOAD                 14 OPS_1OPS !
+    ['] 1OP_NOT                  15 OPS_1OPS !
+; INIT_1OPS
+
+
 : ZINTERP_1OP ( arg opcode -- )
-    ." 1OP: " . . CR
+    128 - OPS_1OPS @ EXECUTE
 ;
 
 : ZINTERP_2OP ( arg2 arg1 opcode -- )

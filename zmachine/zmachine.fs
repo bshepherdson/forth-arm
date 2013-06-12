@@ -415,9 +415,9 @@ STACKTOP @ SP !
 \ v3 specific all up in this shiz
 
 \ Returns unsigned values.
-: PROP_DEFAULTS ( propnum -- value ) 1- 2 * HDR_OBJECT_TABLE + BA RW ;
+: PROP_DEFAULTS ( propnum -- value ) 1- 2 *   HDR_OBJECT_TABLE BA RW   + BA RW ;
 
-: OBJ_TABLE_TOP ( -- ra ) HDR_OBJECT_TABLE 62 + BA ;
+: OBJ_TABLE_TOP ( -- ra ) HDR_OBJECT_TABLE BA RW 62 + BA ;
 
 : OBJ_ADDR ( objnum -- ra ) 1- 9 * OBJ_TABLE_TOP + ;
 
@@ -449,6 +449,27 @@ STACKTOP @ SP !
     DUP PROP_SIZE ( ra size )
     1+ + ( ra' )
 ;
+
+\ Returns the address of the size byte, or 0 if the object doesn't have it.
+: FIND_PROP ( prop obj -- ra )
+    OBJ_PROP_TOP ( prop ra )
+    SWAP ( ra prop )
+    BEGIN
+        OVER PROP_NUM ( ra prop num )
+        OVER < ( ra prop ? )
+    WHILE ( ra prop ) \ loops while the found number is larger
+        SWAP PROP_NEXT SWAP
+    REPEAT ( ra prop )
+    \ At this point, we've either found the prop or missed it.
+    OVER PROP_NUM ( ra prop num )
+    OVER = IF ( ra prop )
+        DROP ( ra )
+    ELSE ( ra prop )
+        2DROP 0
+    THEN
+;
+
+
 
 \ Takes an xt for the function to apply on the attr
 : ATTR_DO ( obj attr xt[ byte bit -- byte' ] -- )
@@ -670,8 +691,185 @@ VARIABLE RESTART_FORWARD
     128 - OPS_1OPS @ EXECUTE
 ;
 
+
+\ 2OP instructions
+
+\ 0 does not exist
+: 2OP_JE ( b a -- )
+    = ZBRANCH
+;
+
+\ These look backwards but aren't. Remember that the stack has arg1 on top.
+: 2OP_JL ( b a -- )
+    SIGN SWAP SIGN SWAP
+    > ZBRANCH
+;
+
+: 2OP_JG ( b a -- )
+    SIGN SWAP SIGN SWAP
+    < ZBRANCH
+;
+
+: 2OP_DEC_CHK ( val var -- )
+    SWAP SIGN SWAP
+    DUP 0= IF ( val var )
+        DROP POP 1- DUP PUSH ( val val' )
+    ELSE ( val var )
+        DUP 16 < IF LOCAL ELSE GLOBAL THEN ( val ra )
+        DUP RWS 1- ( val ra val' )
+        DUP ROT ( val val' val' ra )
+        WW ( val val' )
+    THEN
+    > ZBRANCH
+;
+
+: 2OP_INC_CHK
+    SWAP SIGN SWAP
+    DUP 0= IF ( val var )
+        DROP POP 1+ DUP PUSH ( val val' )
+    ELSE ( val var )
+        DUP 16 < IF LOCAL ELSE GLOBAL THEN ( val ra )
+        DUP RWS 1+ ( val ra val' )
+        DUP ROT ( val val' val' ra )
+        WW ( val val' )
+    THEN
+    < ZBRANCH
+;
+
+: 2OP_JIN ( o2 o1 -- )
+    PARENT RB = ZBRANCH
+;
+
+\ Branch if all the flags in the bitmap are set. That is, if bitmap & flags == flags
+: 2OP_TEST ( flags bitmap -- )
+    OVER AND = ZBRANCH
+;
+
+: 2OP_OR ( b a -- ) OR STORE ;
+: 2OP_AND ( b a -- ) AND STORE ;
+
+: 2OP_TEST_ATTR ( attr obj -- )
+    SWAP TEST_ATTR ZBRANCH
+;
+
+: 2OP_SET_ATTR ( attr obj -- ) SWAP SET_ATTR ;
+: 2OP_CLEAR_ATTR ( attr obj -- ) SWAP CLEAR_ATTR ;
+
+: 2OP_STORE ( val var -- )
+    DUP 0= IF
+        DROP PUSH
+    ELSE
+        DUP 16 < IF LOCAL ELSE GLOBAL THEN
+        WW
+    THEN
+;
+
+: 2OP_INSERT_OBJ ( dest obj -- )
+    2DUP PARENT WB \ set the parent of obj to dest ( d o )
+    OVER CHILD RB ( d o c )
+    OVER SIBLING WB \ set the sibling of obj to the child of dest ( d o )
+    SWAP CHILD WB \ and set o as the child of d ( )
+;
+
+: 2OP_LOADW ( word-index array -- ) 2 * + BA RW STORE ;
+: 2OP_LOADB ( byte-index array -- ) + BA RB STORE ;
+
+: 2OP_GET_PROP ( prop obj -- )
+    2DUP FIND_PROP ( prop obj ra_of_size_byte )
+    DUP 0= IF ( p o ra )
+        2DROP PROP_DEFAULTS ( val )
+    ELSE ( prop obj ra )
+        -ROT 2DROP ( ra )
+        DUP PROP_SIZE ( ra size )
+        CASE
+        1 OF PROP_DATA RB ENDOF
+        2 OF PROP_DATA RW ENDOF
+        ENDCASE ( val )
+    THEN
+;
+
+: 2OP_GET_PROP_ADDR ( prop obj -- )
+    FIND_PROP ( ra )
+    DUP 0> IF
+        PROP_DATA ( ra )
+        M0 @ - ( ba )
+    THEN ( ba )
+    STORE
+;
+
+: 2OP_GET_NEXT_PROP ( prop obj -- )
+    OVER 0= IF ( prop obj ) \ If given 0, return the first prop
+        NIP ( obj )
+        OBJ_PROP_TOP ( ra )
+        PROP_NUM ( prop )
+    ELSE ( prop obj )
+        FIND_PROP ( ra )
+        PROP_NEXT ( ra )
+        PROP_NUM ( num )
+    THEN
+    STORE
+;
+
+: 2OP_ADD ( b a -- )
+    SIGN SWAP SIGN
+    + STORE
+;
+
+: 2OP_SUB ( b a -- )
+    SIGN SWAP SIGN ( a b )
+    - STORE
+;
+
+: 2OP_MUL ( b a -- )
+    SIGN SWAP SIGN ( a b )
+    * STORE
+;
+
+\ TODO - fix division for negative operands
+: 2OP_DIV ( b a -- )
+    SIGN SWAP SIGN ( a b )
+    / STORE
+;
+
+: 2OP_MOD ( b a -- )
+    SIGN SWAP SIGN ( a b )
+    MOD STORE
+;
+
+
+25 CELLS ARRAY OPS_1OPS
+: INIT_2OPS ( -- )
+    \ No 0
+    ['] 2OP_JE                   1  OPS_2OPS !
+    ['] 2OP_JL                   2  OPS_2OPS !
+    ['] 2OP_JG                   3  OPS_2OPS !
+    ['] 2OP_DEC_CHK              4  OPS_2OPS !
+    ['] 2OP_INC_CHK              5  OPS_2OPS !
+    ['] 2OP_JIN                  6  OPS_2OPS !
+    ['] 2OP_TEST                 7  OPS_2OPS !
+    ['] 2OP_OR                   8  OPS_2OPS !
+    ['] 2OP_AND                  9  OPS_2OPS !
+    ['] 2OP_TEST_ATTR            10 OPS_2OPS !
+    ['] 2OP_SET_ATTR             11 OPS_2OPS !
+    ['] 2OP_CLEAR_ATTR           12 OPS_2OPS !
+    ['] 2OP_STORE                13 OPS_2OPS !
+    ['] 2OP_INSERT_OBJ           14 OPS_2OPS !
+    ['] 2OP_LOADW                15 OPS_2OPS !
+    ['] 2OP_LOADB                16 OPS_2OPS !
+    ['] 2OP_GET_PROP             17 OPS_2OPS !
+    ['] 2OP_GET_PROP_ADDR        18 OPS_2OPS !
+    ['] 2OP_GET_NEXT_PROP        19 OPS_2OPS !
+    ['] 2OP_ADD                  20 OPS_2OPS !
+    ['] 2OP_SUB                  21 OPS_2OPS !
+    ['] 2OP_MUL                  22 OPS_2OPS !
+    ['] 2OP_DIV                  23 OPS_2OPS !
+    ['] 2OP_MOD                  24 OPS_2OPS !
+; INIT_2OPS
+
+
+
 : ZINTERP_2OP ( arg2 arg1 opcode -- )
-    ." 2OP: " . . . CR
+    OPS_2OPS @ EXECUTE
 ;
 
 : ZINTERP_VAR ( args... n opcode -- )

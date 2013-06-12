@@ -86,6 +86,10 @@ VARIABLE M0
     -1 16 >> AND ;   \ So we mask off the upper 16 bits (0000758c)
 
 
+: MIN ( a b -- min )
+    2DUP < IF DROP ELSE NIP THEN
+;
+
 \ Text encoding! D: So much complication for little gain.
 \ Overall strategy:
 \ - One word does the right thing for each 5-bit Z-character.
@@ -871,6 +875,82 @@ VARIABLE RESTART_FORWARD
 : ZINTERP_2OP ( arg2 arg1 opcode -- )
     OPS_2OPS @ EXECUTE
 ;
+
+
+
+\ VAR opcodes
+
+: VAR_CALL ( args... routine n -- )
+    1- SWAP ( args... argc routine )
+    DUP 0= IF ( args... argc routine )
+        DROP
+        BEGIN
+            DUP 0>
+        WHILE
+            NIP 1-
+        REPEAT ( argc )
+        DROP ( )
+        0 STORE \ return false
+    ELSE ( args... argc routine )
+        PA ( ... routine_ra )
+        DUP RB ( ... ra nLocals )
+        SP @ ( ... ra nLocals sp )
+        BEGIN
+            OVER 0>
+        WHILE ( ... ra nLocals sp )
+            4- -ROT ( .. sp ra nLocals )
+            1- 2DUP ( ... sp ra nl ra nl )
+            2 * SWAP 1+ + ( ... sp ra_routine nl ra_local )
+            RW ( ... sp ra_routine nl local )
+            3 PICK ( ... sp ra nl local sp )
+            ! ( ... sp ra nl )
+            ROT ( ... ra nl sp )
+        REPEAT
+        \ Now all the locals are copied. The sp on the stack points at the last one.
+        \ Now we store the various pointers.
+        4- FP @ ( ... ra nl sp' fp )
+        OVER ! ( ... ra nl sp' )
+        4- SP @ ( ... ra nl sp'' sp )
+        OVER ! ( ... ra nl sp'' )
+        4- PC @ ( ... ra nl sp''' pc )
+        OVER ! ( ... ra nl sp''' )
+        DUP FP ! \ store the new sp as the new FP
+        SP ! \ and write it to SP ( ... ra nl )
+
+        \ At this point, the stack is fully set up for the call,
+        \ except for writing the arguments into the stack.
+        ( args... argc routine_ra nLocals )
+        \ First, determine the minimum of nLocals and argc.
+        ROT ( args... ra nl argc )
+        MIN ( args... ra argc' )
+
+        SWAP >R ( args... argc' )
+
+        FP @ 12 + \ points at the first local ( args... argc local1_ra )
+        SWAP  ( args... l1_ra argc )
+        BEGIN
+            DUP 0>
+        WHILE
+            1- >R ( args... l1_ra )
+            2DUP ( args... l1_ra arg ra )
+            ! ( leftovers... ra )
+            4+ ( leftovers... ra' )
+            R> ( leftovers... ra' argc' )
+        REPEAT
+        \ All arguments are now copied into the locals.
+        ( ra' argc' )
+        2DROP
+        R> ( routine_ra )
+        DUP RB ( ra nLocals )
+        2 * 1+ + ( ra_first_code )
+        PC ! ( )
+        \ Return handles the storing, in this case.
+    THEN
+;
+
+
+
+
 
 : ZINTERP_VAR ( args... n opcode -- )
     ." VAR: " .

@@ -949,6 +949,91 @@ VARIABLE RESTART_FORWARD
 ;
 
 
+: VAR_STOREW ( value index array n -- )
+    DROP
+    SWAP 2 * ( value ba offset_ba )
+    + BA WW
+;
+
+: VAR_STOREB ( value index array n -- )
+    DROP
+    + BA WB
+;
+
+: VAR_PUT_PROP ( value prop obj n -- )
+    DROP
+    FIND_PROP ( value ra? )
+    DUP 0= IF
+        2DROP ." Object does not have property defined."
+    ELSE
+        ( value ra )
+        DUP PROP_SIZE ( value ra size )
+        CASE
+        1 OF 1+ WB ENDOF
+        2 OF 1+ WW ENDOF
+        2DROP
+        ." Property is too big for put_prop"
+        ENDCASE
+    THEN
+;
+
+: VAR_READ
+    ." Implement me."
+;
+
+: VAR_PRINT_CHAR ( code n -- )
+    DROP EMIT
+;
+
+\ TODO - No trailing space
+: VAR_PRINT_NUM ( num n -- )
+    DROP SIGN .
+;
+
+: VAR_RANDOM ( range n -- rand )
+    DROP SIGN
+    DUP 0< IF ( range )
+        SETSEED 0 ( 0 )
+    ELSE
+        RANDOM ( range result )
+        SWAP MOD 1+ ( rand )
+    THEN
+    STORE
+;
+
+
+: VAR_PUSH ( value n -- )
+    DROP PUSH
+;
+
+: VAR_PULL ( var n -- )
+    DROP
+    PULL SWAP ( val var )
+    DUP 0= IF
+        DROP PUSH
+    ELSE
+        DUP 16 < IF LOCAL ELSE GLOBAL THEN
+        WW
+    THEN
+;
+
+
+: VAR_SPLIT_WINDOW ( lines n -- )
+    2DROP ." split_window not implemented"
+;
+
+
+: VAR_SET_WINDOW ( window n -- )
+    2DROP ." set_window not implemented"
+;
+
+: VAR_OUTPUT_STREAM ( stream n -- )
+    2DROP ." output_stream not implemented"
+;
+
+: VAR_INPUT_STREAM ( stream n --- )
+    2DROP ." input_stream not implemeneted"
+;
 
 
 

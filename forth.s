@@ -1777,11 +1777,36 @@ push {r0}
 NEXT
 
 
+name_SETSEED:
+.word name_SYSCALL3
+.byte 7
+.ascii "SETSEED"
+.align
+SETSEED:
+.word code_SETSEED
+code_SETSEED:
+pop {r0}
+bl srandom
+NEXT
+
+
+name_RANDOM:
+.word name_SETSEED
+.byte 6
+.ascii "RANDOM"
+.align
+RANDOM:
+.word code_RANDOM
+code_RANDOM:
+bl random /* r0 holds a random integer from 0 to MAXINT */
+push {r0}
+NEXT
+
 
 /* Branching primitives */
 
 name_BRANCH:
-.word name_SYSCALL3
+.word name_RANDOM
 .byte 6
 .ascii "BRANCH"
 .align

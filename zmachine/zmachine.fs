@@ -26,7 +26,7 @@
 : RW  ( ra -- uw ) H@ BITSWAPH ;
 : RWS ( ra -- sw ) H@S BITSWAPHS ;
 : WB  ( b ra -- ) C! ;
-: WW  ( w ra -- ) BITSWAPH H! ;
+: WW  ( w ra -- ) SWAP BITSWAPH SWAP H! ;
 
 \ Stores the real address of Z-machine address 0 on the heap.
 VARIABLE M0
@@ -228,7 +228,7 @@ VARIABLE PRINT_STRING_FORWARD
 
 \ Returns the number of bytes long a string is.
 : STRLEN ( ra -- uw )
-    0
+    2 \ Count the first word
     BEGIN
         OVER RW 15 BIT NOT
     WHILE ( str len )
@@ -283,6 +283,8 @@ STACKTOP @ SP !
 : PC@ ( -- b ) PC @ RB PC++ ;
 : PC@W ( -- w ) PC @ RW PC+2 ;
 
+\ Prints PC in hex as a byte address.
+: PC. ( -- ) PC @ M0 @ - ..H DROP ;
 
 
 \ Interpreters
@@ -310,11 +312,11 @@ STACKTOP @ SP !
 \ Turns a global number into a real address.
 : GLOBAL ( num -- ra ) 16 - 2 *    HDR_GLOBAL_VARIABLES BA RW   + BA ;
 
+
 : SMALLCONSTANT ( -- val ) PC@ ;
 : LARGECONSTANT ( -- val ) PC@W ;
 
 : GETARG ( type -- arg )
-    ." Getarg for type " .. CR
     CASE
     0 OF LARGECONSTANT ENDOF
     1 OF SMALLCONSTANT ENDOF
@@ -353,15 +355,16 @@ STACKTOP @ SP !
             GLOBAL WW
         THEN
     THEN
+    ." end store"
 ;
 
 
 \ Returns from a routine.
 \ Return address from the stack points at the last byte of the call instruction, which gives the storage byte for the return target.
 : RETURN ( val -- )
-    FP     @ PC !
-    FP 4+  @ SP !
-    FP 8 + @ FP !
+    FP @     @ PC !
+    FP @ 4+  @ SP !
+    FP @ 8 + @ FP !
     STORE
 ;
 
@@ -523,7 +526,7 @@ VARIABLE RESTART_FORWARD
 
 : 0OP_POP POP DROP ;
 
-: 0OP_QUIT PROCESS_EXIT ;
+: 0OP_QUIT 0 PROCESS_EXIT ;
 
 : 0OP_NEW_LINE CR ;
 
@@ -888,6 +891,8 @@ INIT_0OPS
         REPEAT
         \ Now all the locals are copied. The sp on the stack points at the last one.
         \ Now we store the various pointers.
+
+
         4- FP @ ( ... ra nl sp' fp )
         OVER ! ( ... ra nl sp' )
         4- SP @ ( ... ra nl sp'' sp )
@@ -1210,7 +1215,7 @@ VARIABLE WORDS_PARSED
 INIT_VAR
 
 : ZINTERP_VAR ( args... n opcode -- )
-    224 - OPS_VAR @ EXECUTE
+    OPS_VAR @ EXECUTE
 ;
 
 
@@ -1268,12 +1273,12 @@ INIT_VAR
                     SWAP >R ( arg3 arg2 arg4 )
                     -ROT    ( arg4 arg3 arg2 )
                     R>      ( arg4 arg3 arg2 arg1 )
-                    0 0     \ dummy typebyte and type for the below ( a4 a3 a2 a1 dummy1 dummy2 )
+                    0 0     \ dummy typebyte for the below ( a4 a3 a2 a1 dummy )
                 THEN
             THEN
         THEN
     THEN
-    DROP DROP \ drop the typebyte: ( args... RR opcode argc )
+    2DROP \ drop the type and typebyte: ( args... RR opcode argc )
     R> R> \ retrieve the other values: ( args.. argc opcode )
 
     DUP BIT 5 IF
@@ -1290,6 +1295,7 @@ INIT_VAR
 
 \ The master interpreter.
 : ZINTERP ( -- )
+    PC @ CR ." ZINTERP: " M0 @ - HEX . DECIMAL CR
     PC@
     DUP 6 >>
     DUP 3 = IF
@@ -1329,7 +1335,6 @@ VARIABLE FD
 : RESTART ( -- )
     READ_STORY
     HDR_PC0 BA RW ( pc0_ba )
-    ..H
     BA ( pc0_ra )
     PC ! ( )
     BEGIN
@@ -1352,5 +1357,6 @@ INIT_RESTART
 
 
 \ Testing
-\ S" zmachine/Zork1.z3" LOAD_STORY
+HEX BEEF DECIMAL \ Sentinel value on the stack
+S" call.z3" LOAD_STORY
 

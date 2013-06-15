@@ -1355,7 +1355,7 @@ cmp r1, #'A'
   blt _number_end
 
 /* If we made it here, it's a letter-digit */
-sub r1, r1, #8 /* 65-57 = 8, turns 'A' into '9' + 1 */
+sub r1, r1, #7 /* 65-58 = 7, turns 'A' into '9' + 1 */
 
 _number_found_digit:
 /* Adjust to be the actual number */

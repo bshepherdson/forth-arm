@@ -19,6 +19,6 @@
 ;
 
 
-: PROCESS_EXIT ( code -- ) 93 SYSCALL1 ;
+: PROCESS_EXIT ( code -- ) 1 SYSCALL1 ;
 
 

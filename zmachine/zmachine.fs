@@ -31,27 +31,6 @@
 \ Stores the real address of Z-machine address 0 on the heap.
 VARIABLE M0
 
-\ Code responsible for loading the story file
-\ Takes a Forth string, copies it into a C string, and calls open(2)
-: LOAD_STORY ( str len -- )
-    HERE @ M0 ! \ Set M0 properly
-    OVER + ( str len+HERE)
-    0 SWAP C! \ write the null terminator. ( str )
-    O_RDONLY SWAP OPEN \ fd
-    \ TODO: Handle error (negative fd)
-    BEGIN
-        1024 OVER HERE @ SWAP ( fd len buf fd )
-        READ ( fd read_bytes )
-        ?DUP
-    WHILE
-        \ Move HERE forward by the amount read
-        HERE +!
-    REPEAT
-    ( fd )
-    CLOSE DROP ( )
-;
-
-
 \ These words give the locations of various items in the headers. They don't actually read the locations.
 \ All of these are constants that hold the byte address of a value in the header.
 0  CONSTANT HDR_VERSION
@@ -514,7 +493,6 @@ STACKTOP @ SP !
 \ retrieve a property address (obj, prop)
 \ find the next property (obj, prop)
 \ put a property (obj, prop, value)
-\
 
 \ 0OP instructions
 : 0OP_RTRUE ( -- ) 1 RETURN ;
@@ -571,7 +549,9 @@ VARIABLE RESTART_FORWARD
     ['] 0OP_NEW_LINE    11 OPS_0OPS !
     ['] 0OP_SHOW_STATUS 12 OPS_0OPS !
     ['] 0OP_VERIFY      13 OPS_0OPS !
-; INIT_0OPS
+;
+INIT_0OPS
+
 
 : ZINTERP_0OP ( opcode -- )
     176 - OPS_0OPS @ EXECUTE
@@ -586,7 +566,7 @@ VARIABLE RESTART_FORWARD
 : 1OP_GET_CHILD   ( arg -- ) CHILD   RB DUP STORE 0> ZBRANCH ;
 : 1OP_GET_PARENT  ( arg -- ) PARENT  RB DUP STORE 0> ZBRANCH ;
 
-: 1OP_GET_PROP_LEN ( arg -- ) PROP_LEN STORE ;
+: 1OP_GET_PROP_LEN ( arg -- ) PROP_SIZE STORE ;
 
 : INCDEC ( var amount -- amount' )
     SWAP ( amount var )
@@ -647,7 +627,7 @@ VARIABLE RESTART_FORWARD
     OBJ_SHORT_NAME PRINT_STRING
 ;
 
-: 1OP_RETURN ( val -- ) RETURN ;
+: 1OP_RET ( val -- ) RETURN ;
 
 \ Address is an offset to apply to the PC. Treat it as signed.
 : 1OP_JUMP ( offset -- )
@@ -841,7 +821,7 @@ VARIABLE RESTART_FORWARD
 ;
 
 
-25 CELLS ARRAY OPS_1OPS
+25 CELLS ARRAY OPS_2OPS
 : INIT_2OPS ( -- )
     \ No 0
     ['] 2OP_JE                   1  OPS_2OPS !
@@ -977,9 +957,183 @@ VARIABLE RESTART_FORWARD
     THEN
 ;
 
-: VAR_READ
-    ." Implement me."
+\ Parse helpers
+
+: TO_LOWERCASE ( key -- key' )
+    DUP 65 91 WITHIN
+    IF 32 + THEN
 ;
+
+\ Expects length in byte 0. text-buffer is a byte address
+: READ_LINE ( ra_text-buffer -- )
+  DUP RB ( buf len )
+  1+ 1 DO \ indexed from 1
+    KEY
+    2DUP SWAP I + WB ( b k )
+    TO_LOWERCASE
+    10 = IF
+      0 OVER WB 10000
+    ELSE 1 THEN
+  +LOOP
+  \ Write final 0.
+  DUP RB + 0 SWAP WB
+;
+
+
+6 ARRAY DICT_BUF
+VARIABLE DICT_BUF_LEN
+
+: PUT_DICT_CHAR ( c -- )
+  DICT_BUF_LEN @ DUP 6 < IF
+    DICT_BUF !
+    1 DICT_BUF_LEN +!
+  ELSE 2DROP THEN
+;
+
+
+\ Writes next char (or 5) to DICT_BUF
+: NEXT_CHAR ( ra len -- ra' len' )
+  DUP 0= IF 5 PUT_DICT_CHAR
+  ELSE
+    1- SWAP DUP RB \ l' a c
+    SWAP 1+ \ l' c a'
+    -ROT
+    DUP 97 123 WITHIN IF
+      91 - PUT_DICT_CHAR
+    ELSE 5 PROCESS_EXIT THEN
+  THEN \ a' l'
+;
+
+: ENCODE ( a b c -> abc )
+  SWAP 5  << OR ( a bc )
+  SWAP 10 << OR ( abc )
+;
+
+\ TODO: v3 specific
+2 ARRAY DICT_TARGET
+
+: PARSE_STRING ( addr len -- )
+  NEXT_CHAR NEXT_CHAR NEXT_CHAR
+  NEXT_CHAR NEXT_CHAR NEXT_CHAR
+  2DROP
+  0 DICT_BUF @
+  1 DICT_BUF @
+  2 DICT_BUF @
+  ENCODE
+  0 DICT_TARGET !
+
+  3 DICT_BUF @
+  4 DICT_BUF @
+  5 DICT_BUF @
+  ENCODE
+  1 DICT_TARGET !
+;
+
+\ Address of the dictionary table.
+: DICT ( -- ra )
+    HDR_DICTIONARY BA RW BA
+;
+
+\ Address of the first word.
+: DICT_TOP ( -- ra )
+  DICT DUP RB + 4+ ;
+
+: DICT_ENTRY_SIZE ( -- n )
+  DICT DUP RB 1+ + RB ;
+
+: DICT_ENTRY_COUNT ( -- n )
+  DICT DUP RB 2 + + RW ;
+
+\ Address after the last word.
+: DICT_BOTTOM ( -- ra )
+  DICT_ENTRY_SIZE
+  DICT_ENTRY_COUNT * DICT_TOP +
+;
+
+
+\ Writes the entry's data to a parse table.
+: DICT_WRITE_ENTRY ( parse_ra len index data -- )
+  3 PICK ( p l i d p )
+  WW ( p l i )
+  -ROT ( i p l )
+  OVER 2 + ( i p l p' )
+  WB 3 + ( i p' )
+  WB ( )
+;
+
+\ Looks up DICT_TARGET in the dictionary
+: DICT_LOOKUP ( parse len i --)
+  DICT_BOTTOM DICT_TOP DO
+    I RW 0 DICT_TARGET @ =
+    I 2 + RW 1 DICT_TARGET @
+    = AND IF ( p l i )
+      I DICT_WRITE_ENTRY ( )
+      50000
+    ELSE DICT_ENTRY_SIZE THEN
+  +LOOP
+;
+
+
+: IS_SEPARATOR ( c -- ? )
+  DUP 32 = OVER 44 = OR ( c ? )
+  SWAP 46 = OR
+;
+
+: PARSE_FIND_SEPARATOR ( text_ra i -- text_ra i' )
+  BEGIN
+    2DUP + RB ( t i c )
+    IS_SEPARATOR NOT
+  WHILE ( t i' ) 1+ REPEAT
+;
+
+VARIABLE WORDS_PARSED
+
+: PARSE_WORD ( parse_ra text_ra i )
+  DUP >R \ Set aside start pos
+  PARSE_FIND_SEPARATOR ( p t i' )
+  R> DUP >R \ p t i' i
+  2DUP - \ p t i' i len
+  3 PICK \ p t i' i len t
+  ROT + \ p t i' len addr
+  SWAP DUP >R \ p t i' a l
+  PARSE_STRING \ p t i'
+  ROT DUP R> R> \ t i' p p l i
+  DICT_LOOKUP \ t i' p
+  4 + -ROT \ p' t i'
+  2DUP + RB
+  0= IF DROP 0 THEN
+;
+
+\ Parses the whole text buffer
+\ into the parse buffer.
+\ Writes the number of words
+\ parsed into byte 1 of parse.
+: PARSE ( parse text -- )
+  OVER >R \ Set aside parse.
+  0 WORDS_PARSED !
+  SWAP 2 + SWAP 1+ ( p t )
+  1 BEGIN ( p t i )
+    PARSE_WORD ( p' t i' )
+    DUP 0>
+  UNTIL ( p t i )
+  2DROP DROP R> ( p_orig )
+  1+ WORDS_PARSED @ SWAP WB
+;
+
+\ TODO - Implement me
+: DRAW_STATUS_LINE ( -- ) ;
+
+: VAR_READ ( parse text n -- )
+  DROP
+  BA SWAP BA SWAP ( parse_ra text_ra )
+  DRAW_STATUS_LINE
+  DUP READ_LINE ( parse text )
+  OVER 0>
+  IF PARSE ( )
+  ELSE 2DROP THEN
+;
+
+
 
 : VAR_PRINT_CHAR ( code n -- )
     DROP EMIT
@@ -1008,7 +1162,7 @@ VARIABLE RESTART_FORWARD
 
 : VAR_PULL ( var n -- )
     DROP
-    PULL SWAP ( val var )
+    POP SWAP ( val var )
     DUP 0= IF
         DROP PUSH
     ELSE
@@ -1035,17 +1189,28 @@ VARIABLE RESTART_FORWARD
     2DROP ." input_stream not implemeneted"
 ;
 
-
+22 CELLS ARRAY OPS_VAR
+: INIT_VAR ( -- )
+    ['] VAR_CALL                 0  OPS_VAR !
+    ['] VAR_STOREW               1  OPS_VAR !
+    ['] VAR_STOREB               2  OPS_VAR !
+    ['] VAR_PUT_PROP             3  OPS_VAR !
+    ['] VAR_READ                 4  OPS_VAR !
+    ['] VAR_PRINT_CHAR           5  OPS_VAR !
+    ['] VAR_PRINT_NUM            6  OPS_VAR !
+    ['] VAR_RANDOM               7  OPS_VAR !
+    ['] VAR_PUSH                 8  OPS_VAR !
+    ['] VAR_PULL                 9  OPS_VAR !
+    ['] VAR_SPLIT_WINDOW         10 OPS_VAR !
+    ['] VAR_SET_WINDOW           11 OPS_VAR !
+    \ Skip some...
+    ['] VAR_OUTPUT_STREAM        20 OPS_VAR !
+    ['] VAR_INPUT_STREAM         21 OPS_VAR !
+;
+INIT_VAR
 
 : ZINTERP_VAR ( args... n opcode -- )
-    ." VAR: " .
-    DUP . ." args: "
-    BEGIN
-        DUP 0>
-    WHILE
-        SWAP . 1-
-    REPEAT
-    CR
+    224 - OPS_VAR @ EXECUTE
 ;
 
 
@@ -1139,13 +1304,53 @@ VARIABLE RESTART_FORWARD
 ;
 
 
+\ Loading and restarting
+VARIABLE FD
+
+\ Code responsible for loading the story file
+\ Uses the stored fd and open file and loads the story file
+: READ_STORY ( -- )
+    0 FD @ LSEEK ( ) \ Seek to the start of the file.
+    FD @ ( fd )
+    \ TODO: Handle error (negative fd)
+    BEGIN
+        1024 OVER HERE @ SWAP ( fd len buf fd )
+        READ ( fd read_bytes )
+        ?DUP
+    WHILE
+        \ Move HERE forward by the amount read
+        HERE +!
+    REPEAT
+    ( fd )
+    DROP ( )
+;
+
+
+: RESTART ( -- )
+    READ_STORY
+    HDR_PC0 BA RW ( pc0_ba )
+    ..H
+    BA ( pc0_ra )
+    PC ! ( )
+    BEGIN
+        ZINTERP
+    AGAIN
+;
+: INIT_RESTART ( ) ['] RESTART RESTART_FORWARD ! ;
+INIT_RESTART
+
+
+\ Takes a Forth string, copies it into a C string, and calls open(2)
+: LOAD_STORY ( str len -- )
+    HERE @ M0 ! \ Set M0 properly
+    OVER + ( str len+HERE)
+    0 SWAP C! \ write the null terminator. ( str )
+    O_RDONLY SWAP OPEN \ fd
+    FD !
+    RESTART
+;
+
+
 \ Testing
-S" zmachine/Zork1.z3" LOAD_STORY
-
-8 CELLS ALLOT
-DUP FP !
-16 + 12 BITSWAPH SWAP ! \ store 18 in Local 1
-
-20159 BA PC ! ZINTERP
-
+\ S" zmachine/Zork1.z3" LOAD_STORY
 

@@ -473,9 +473,9 @@
   ALLOT >R
   WORD CREATE \ define the word
   DOCOL ,    \ compile DOCOL
+  ' CELLS ,     \ multiply the index into cells
   ' LIT ,    \ compile LIT
   R> ,       \ compile address
-  ' CELLS ,     \ multiply the index into cells
   ' + ,      \ add index
   ' EXIT ,   \ compile EXIT
 ;

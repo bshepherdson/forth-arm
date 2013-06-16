@@ -556,7 +556,7 @@ INIT_0OPS
 
 
 : ZINTERP_0OP ( opcode -- )
-    176 - OPS_0OPS @ EXECUTE
+    OPS_0OPS @ EXECUTE
 ;
 
 
@@ -674,7 +674,7 @@ INIT_0OPS
 
 
 : ZINTERP_1OP ( arg opcode -- )
-    128 - OPS_1OPS @ EXECUTE
+    OPS_1OPS @ EXECUTE
 ;
 
 
@@ -1222,9 +1222,11 @@ INIT_VAR
 : ZINTERP_SHORT ( opcode -- )
     DUP 4 >> 3 AND DUP 3 = IF ( opcode type )
         DROP ( opcode )
+        15 AND
         ZINTERP_0OP
     ELSE
         GETARG SWAP ( arg opcode )
+        15 AND
         ZINTERP_1OP
     THEN
 ;

@@ -355,7 +355,6 @@ STACKTOP @ SP !
             GLOBAL WW
         THEN
     THEN
-    ." end store"
 ;
 
 
@@ -1215,7 +1214,7 @@ VARIABLE WORDS_PARSED
 INIT_VAR
 
 : ZINTERP_VAR ( args... n opcode -- )
-    OPS_VAR @ EXECUTE
+    224 - OPS_VAR @ EXECUTE
 ;
 
 
@@ -1242,6 +1241,7 @@ INIT_VAR
     OVER 5 BIT ( opcode arg1 type2 )
     LONGARG    ( opcode arg1 arg2 )
     SWAP ROT   ( arg2 arg1 opcode )
+    31 AND \ Mask the opcode
     ZINTERP_2OP
 ;
 
@@ -1281,7 +1281,8 @@ INIT_VAR
     2DROP \ drop the type and typebyte: ( args... RR opcode argc )
     R> R> \ retrieve the other values: ( args.. argc opcode )
 
-    DUP BIT 5 IF
+
+    DUP 5 BIT IF
         \ Bit 5 is set, this is a VAR instruction.
         ZINTERP_VAR
     ELSE

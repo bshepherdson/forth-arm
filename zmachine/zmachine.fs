@@ -750,6 +750,7 @@ INIT_0OPS
     THEN
 ;
 
+
 : 2OP_INSERT_OBJ ( dest obj -- )
     2DUP PARENT WB \ set the parent of obj to dest ( d o )
     OVER CHILD RB ( d o c )
@@ -1214,7 +1215,7 @@ VARIABLE WORDS_PARSED
 INIT_VAR
 
 : ZINTERP_VAR ( args... n opcode -- )
-    224 - OPS_VAR @ EXECUTE
+    OPS_VAR @ EXECUTE
 ;
 
 
@@ -1284,10 +1285,11 @@ INIT_VAR
 
     DUP 5 BIT IF
         \ Bit 5 is set, this is a VAR instruction.
-        ZINTERP_VAR
+        31 AND ZINTERP_VAR
     ELSE
         \ This is a 2OP instruction. Drop the count and call out.
         NIP ( arg2 arg1 opcode )
+        31 AND
         ZINTERP_2OP
     THEN
 ;
@@ -1296,6 +1298,11 @@ INIT_VAR
 
 \ The master interpreter.
 : ZINTERP ( -- )
+    \ As a debug test, check for the top element on the stack to be the sentinel.
+    DUP 48879 <> IF
+        ." Dirty stack!" CR
+    THEN
+
     PC @ CR ." ZINTERP: " M0 @ - HEX . DECIMAL CR
     PC@
     DUP 6 >>

@@ -381,13 +381,19 @@ STACKTOP @ SP !
         IF ( offset_short )
             \ Long form, load the second byte
             8 << PC@ OR ( offset )
+            \ Check the 13th bit, if it's 1, then negate this number.
+            DUP 13 BIT IF
+                8191 AND \ mask off the top bit
+                0 SWAP - ( neg_offset )
+                1+ \ fix 2's complement
+            THEN
         THEN ( offset )
 
         CASE
         0 OF 0 RETURN ENDOF
         1 OF 1 RETURN ENDOF
 
-        2 - PC +!
+        DUP 2 - PC +! ( dummy_offset )
         ENDCASE ( )
     ELSE ( byte1 )
         \ Not branching. Skip the second byte if necessary
@@ -633,7 +639,7 @@ INIT_0OPS
 
 \ Address is an offset to apply to the PC. Treat it as signed.
 : 1OP_JUMP ( offset -- )
-    SIGN PC +!
+    SIGN 2 - PC +!
 ;
 
 : 1OP_PRINT_PADDR ( pa -- ) PA PRINT_STRING ;
@@ -956,9 +962,9 @@ INIT_0OPS
         CASE
         1 OF 1+ WB ENDOF
         2 OF 1+ WW ENDOF
-        2DROP
+        DROP ( value_dummy )
         ." Property is too big for put_prop"
-        ENDCASE
+        ENDCASE ( )
     THEN
 ;
 

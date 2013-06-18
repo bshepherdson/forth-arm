@@ -883,18 +883,19 @@ INIT_0OPS
     ELSE ( args... argc routine )
         PA ( ... routine_ra )
         DUP RB ( ... ra nLocals )
-        SP @ ( ... ra nLocals sp )
+        TUCK ( ... nLocals ra nLocals )
+        SP @ ( ... nLocals ra nLocals sp )
         BEGIN
             OVER 0>
-        WHILE ( ... ra nLocals sp )
+        WHILE ( ... nLocals ra nLocals sp )
             4- -ROT ( .. sp ra nLocals )
             1- 2DUP ( ... sp ra nl ra nl )
             2 * SWAP 1+ + ( ... sp ra_routine nl ra_local )
             RW ( ... sp ra_routine nl local )
             3 PICK ( ... sp ra nl local sp )
-            ! ( ... sp ra nl )
+            WW ( ... sp ra nl )
             ROT ( ... ra nl sp )
-        REPEAT
+        REPEAT ( ... nLocals ra 0 sp )
         \ Now all the locals are copied. The sp on the stack points at the last one.
         \ Now we store the various pointers.
 
@@ -906,13 +907,14 @@ INIT_0OPS
         4- PC @ ( ... ra nl sp''' pc )
         OVER ! ( ... ra nl sp''' )
         DUP FP ! \ store the new sp as the new FP
-        SP ! \ and write it to SP ( ... ra nl )
+        SP ! \ and write it to SP ( ... nLocals ra 0 )
 
         \ At this point, the stack is fully set up for the call,
         \ except for writing the arguments into the stack.
-        ( args... argc routine_ra nLocals )
+        ( args... argc nLocals routine_ra 0 )
         \ First, determine the minimum of nLocals and argc.
-        ROT ( args... ra nl argc )
+        DROP ( args... argc nLocals routine_ra )
+        -ROT ( args... ra argc nl )
         MIN ( args... ra argc' )
 
         SWAP >R ( args... argc' )
@@ -924,7 +926,8 @@ INIT_0OPS
         WHILE
             1- >R ( args... l1_ra )
             2DUP ( args... l1_ra arg ra )
-            ! ( leftovers... ra )
+            WW ( leftovers... ra )
+            NIP \ Drop the arg itself
             4+ ( leftovers... ra' )
             R> ( leftovers... ra' argc' )
         REPEAT

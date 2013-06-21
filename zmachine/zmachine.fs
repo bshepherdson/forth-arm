@@ -503,17 +503,25 @@ STACKTOP @ SP !
 \ put a property (obj, prop, value)
 
 \ 0OP instructions
-: 0OP_RTRUE ( -- ) 1 RETURN ;
+: 0OP_RTRUE ( -- )
+    ." 0OP_RTRUE " .S CR
+    1 RETURN
+;
 
-: 0OP_RFALSE ( -- ) 0 RETURN ;
+: 0OP_RFALSE ( -- )
+    ." 0OP_RFALSE " .S CR
+    0 RETURN
+;
 
 : 0OP_PRINT ( -- )
+    ." 0OP_PRINT " .S CR
     PC @ ( str )
     DUP PRINT_STRING ( str )
     STRLEN PC +! ( )
 ;
 
 : 0OP_PRINT_RET ( -- )
+    ." 0OP_PRINT_RET " .S CR
     0OP_PRINT
     1 RETURN
 ;
@@ -527,13 +535,25 @@ STACKTOP @ SP !
 VARIABLE RESTART_FORWARD
 : 0OP_RESTART RESTART_FORWARD @ EXECUTE ;
 
-: 0OP_RET_POPPED POP RETURN ;
+: 0OP_RET_POPPED
+    ." 0OP_RET_POPPED" .S CR
+    POP RETURN
+;
 
-: 0OP_POP POP DROP ;
+: 0OP_POP
+    ." 0OP_POP" .S CR
+    POP DROP
+;
 
-: 0OP_QUIT 0 PROCESS_EXIT ;
+: 0OP_QUIT
+    ." 0OP_QUIT" .S CR
+    0 PROCESS_EXIT
+;
 
-: 0OP_NEW_LINE CR ;
+: 0OP_NEW_LINE
+    ." 0OP_NEW_LINE" .S CR
+    CR
+;
 
 \ TODO - Implement
 : 0OP_SHOW_STATUS ;
@@ -568,13 +588,28 @@ INIT_0OPS
 
 
 \ 1OP instructions
-: 1OP_JZ ( arg -- ) 0= ZBRANCH ;
+: 1OP_JZ
+    ." 1OP_JZ" .S CR
+    ( arg -- ) 0= ZBRANCH
+;
 
-: 1OP_GET_SIBLING ( arg -- ) SIBLING RB DUP STORE 0> ZBRANCH ;
-: 1OP_GET_CHILD   ( arg -- ) CHILD   RB DUP STORE 0> ZBRANCH ;
-: 1OP_GET_PARENT  ( arg -- ) PARENT  RB DUP STORE 0> ZBRANCH ;
+: 1OP_GET_SIBLING
+    ." 1OP_GET_SIBLING" .S CR
+    ( arg -- ) SIBLING RB DUP STORE 0> ZBRANCH
+;
+: 1OP_GET_CHILD 
+    ." 1OP_GET_CHILD " .S CR
+    ( arg -- ) CHILD   RB DUP STORE 0> ZBRANCH
+;
+: 1OP_GET_PARENT
+    ." 1OP_GET_PARENT" .S CR
+    ( arg -- ) PARENT  RB DUP STORE 0> ZBRANCH
+;
 
-: 1OP_GET_PROP_LEN ( arg -- ) PROP_SIZE STORE ;
+: 1OP_GET_PROP_LEN
+    ." 1OP_GET_PROP_LEN" .S CR
+    ( arg -- ) PROP_SIZE STORE
+;
 
 : INCDEC ( var amount -- amount' )
     SWAP ( amount var )
@@ -589,14 +624,24 @@ INIT_0OPS
     THEN
 ;
 
-: 1OP_INC ( arg -- )  1 INCDEC DROP ;
-: 1OP_DEC ( arg -- ) -1 INCDEC DROP ;
+: 1OP_INC
+    ." 1OP_INC" .S CR
+    ( arg -- )  1 INCDEC DROP
+;
+: 1OP_DEC
+    ." 1OP_DEC" .S CR
+    ( arg -- ) -1 INCDEC DROP
+;
 
-: 1OP_PRINT_ADDR ( ba -- ) BA PRINT_STRING ;
+: 1OP_PRINT_ADDR
+    ." 1OP_PRINT_ADDR" .S CR
+    ( ba -- ) BA PRINT_STRING
+;
 
 \ 1OP_CALL_1S
 
 : 1OP_REMOVE_OBJ ( obj -- )
+    ." 1OP_REMOVE_OBJ " .S CR
     \ Note this object number and then move up to the parent.
     DUP PARENT RB ( obj parent )
     DUP 0> IF \ do nothing if this object is parentless
@@ -632,21 +677,30 @@ INIT_0OPS
 ;
 
 : 1OP_PRINT_OBJ ( obj -- )
+    ." 1OP_PRINT_OBJ " .S CR
     OBJ_SHORT_NAME PRINT_STRING
 ;
 
-: 1OP_RET ( val -- ) RETURN ;
+: 1OP_RET
+    ." 1OP_RET" .S CR
+    ( val -- ) RETURN
+;
 
 \ Address is an offset to apply to the PC. Treat it as signed.
 : 1OP_JUMP ( offset -- )
+    ." 1OP_JUMP " .S CR
     SIGN 2 - PC +!
 ;
 
-: 1OP_PRINT_PADDR ( pa -- ) PA PRINT_STRING ;
+: 1OP_PRINT_PADDR
+    ." 1OP_PRINT_PADDR" .S CR
+    ( pa -- ) PA PRINT_STRING
+;
 
 : 1OP_LOAD ( var -- )
+    ." 1OP_LOAD " .S CR
     DUP 0= IF
-        DROP POP
+        DROP POP DUP PUSH \ Don't actually modify the stack
     ELSE
         DUP 16 < IF LOCAL ELSE GLOBAL THEN
         RW
@@ -655,6 +709,7 @@ INIT_0OPS
 ;
 
 : 1OP_NOT ( val -- )
+    ." 1OP_NOT " .S CR
     INVERT STORE
 ;
 
@@ -687,22 +742,42 @@ INIT_0OPS
 \ 2OP instructions
 
 \ 0 does not exist
+: VAR_JE ( args... n -- )
+    ." VAR_JE " .S CR
+    1- 0 \ default condition ( d c b a n ? )
+    BEGIN
+        OVER 0>
+    WHILE ( args... a n ? )
+        >R 1- >R ( args... b a )
+        TUCK = ( args... a ? )
+        R> R> ( args... a ? n ? )
+        ROT OR ( args... a n ? )
+    REPEAT ( a n ? )
+    >R 2DROP R> ( ? )
+    ZBRANCH
+;
+
 : 2OP_JE ( b a -- )
+    ." 2OP_JE " .S CR
     = ZBRANCH
 ;
 
+
 \ These look backwards but aren't. Remember that the stack has arg1 on top.
 : 2OP_JL ( b a -- )
+    ." 2OP_JL " .S CR
     SIGN SWAP SIGN SWAP
     > ZBRANCH
 ;
 
 : 2OP_JG ( b a -- )
+    ." 2OP_JG " .S CR
     SIGN SWAP SIGN SWAP
     < ZBRANCH
 ;
 
 : 2OP_DEC_CHK ( val var -- )
+    ." 2OP_DEC_CHK " .S CR
     SWAP SIGN SWAP
     DUP 0= IF ( val var )
         DROP POP 1- DUP PUSH ( val val' )
@@ -716,6 +791,7 @@ INIT_0OPS
 ;
 
 : 2OP_INC_CHK
+    ." 2OP_INC_CHK" .S CR
     SWAP SIGN SWAP
     DUP 0= IF ( val var )
         DROP POP 1+ DUP PUSH ( val val' )
@@ -729,27 +805,43 @@ INIT_0OPS
 ;
 
 : 2OP_JIN ( o2 o1 -- )
+    ." 2OP_JIN " .S CR
     PARENT RB = ZBRANCH
 ;
 
 \ Branch if all the flags in the bitmap are set. That is, if bitmap & flags == flags
 : 2OP_TEST ( flags bitmap -- )
+    ." 2OP_TEST " .S CR
     OVER AND = ZBRANCH
 ;
 
-: 2OP_OR ( b a -- ) OR STORE ;
-: 2OP_AND ( b a -- ) AND STORE ;
+: 2OP_OR
+    ." 2OP_OR" .S CR
+    ( b a -- ) OR STORE
+;
+: 2OP_AND
+    ." 2OP_AND" .S CR
+    ( b a -- ) AND STORE
+;
 
 : 2OP_TEST_ATTR ( attr obj -- )
+    ." 2OP_TEST_ATTR " .S CR
     SWAP TEST_ATTR ZBRANCH
 ;
 
-: 2OP_SET_ATTR ( attr obj -- ) SWAP SET_ATTR ;
-: 2OP_CLEAR_ATTR ( attr obj -- ) SWAP CLEAR_ATTR ;
+: 2OP_SET_ATTR
+    ." 2OP_SET_ATTR" .S CR
+    ( attr obj -- ) SWAP SET_ATTR
+;
+: 2OP_CLEAR_ATTR
+    ." 2OP_CLEAR_ATTR" .S CR
+    ( attr obj -- ) SWAP CLEAR_ATTR
+;
 
 : 2OP_STORE ( val var -- )
+    ." 2OP_STORE " .S CR
     DUP 0= IF
-        DROP PUSH
+        DROP POP DROP PUSH \ Modify the top of the stack in place.
     ELSE
         DUP 16 < IF LOCAL ELSE GLOBAL THEN
         WW
@@ -758,16 +850,24 @@ INIT_0OPS
 
 
 : 2OP_INSERT_OBJ ( dest obj -- )
+    ." 2OP_INSERT_OBJ " .S CR
     2DUP PARENT WB \ set the parent of obj to dest ( d o )
     OVER CHILD RB ( d o c )
     OVER SIBLING WB \ set the sibling of obj to the child of dest ( d o )
     SWAP CHILD WB \ and set o as the child of d ( )
 ;
 
-: 2OP_LOADW ( word-index array -- ) 2 * + BA RW STORE ;
-: 2OP_LOADB ( byte-index array -- ) + BA RB STORE ;
+: 2OP_LOADW
+    ." 2OP_LOADW" .S CR
+    ( word-index array -- ) 2 * + BA RW STORE
+;
+: 2OP_LOADB
+    ." 2OP_LOADB" .S CR
+    ( byte-index array -- ) + BA RB STORE
+;
 
 : 2OP_GET_PROP ( prop obj -- )
+    ." 2OP_GET_PROP " .S CR
     2DUP FIND_PROP ( prop obj ra_of_size_byte )
     DUP 0= IF ( p o ra )
         2DROP PROP_DEFAULTS ( val )
@@ -782,6 +882,7 @@ INIT_0OPS
 ;
 
 : 2OP_GET_PROP_ADDR ( prop obj -- )
+    ." 2OP_GET_PROP_ADDR " .S CR
     FIND_PROP ( ra )
     DUP 0> IF
         PROP_DATA ( ra )
@@ -791,6 +892,7 @@ INIT_0OPS
 ;
 
 : 2OP_GET_NEXT_PROP ( prop obj -- )
+    ." 2OP_GET_NEXT_PROP " .S CR
     OVER 0= IF ( prop obj ) \ If given 0, return the first prop
         NIP ( obj )
         OBJ_PROP_TOP ( ra )
@@ -804,27 +906,32 @@ INIT_0OPS
 ;
 
 : 2OP_ADD ( b a -- )
+    ." 2OP_ADD " .S CR
     SIGN SWAP SIGN
     + STORE
 ;
 
 : 2OP_SUB ( b a -- )
+    ." 2OP_SUB " .S CR
     SIGN SWAP SIGN ( a b )
     - STORE
 ;
 
 : 2OP_MUL ( b a -- )
+    ." 2OP_MUL " .S CR
     SIGN SWAP SIGN ( a b )
     * STORE
 ;
 
 \ TODO - fix division for negative operands
 : 2OP_DIV ( b a -- )
+    ." 2OP_DIV " .S CR
     SIGN SWAP SIGN ( a b )
     / STORE
 ;
 
 : 2OP_MOD ( b a -- )
+    ." 2OP_MOD " .S CR
     SIGN SWAP SIGN ( a b )
     MOD STORE
 ;
@@ -870,6 +977,7 @@ INIT_0OPS
 \ VAR opcodes
 
 : VAR_CALL ( args... routine n -- )
+    ." VAR_CALL " .S CR
     1- SWAP ( args... argc routine )
     DUP 0= IF ( args... argc routine )
         DROP
@@ -944,17 +1052,20 @@ INIT_0OPS
 
 
 : VAR_STOREW ( value index array n -- )
+    ." VAR_STOREW " .S CR
     DROP
     SWAP 2 * ( value ba offset_ba )
     + BA WW
 ;
 
 : VAR_STOREB ( value index array n -- )
+    ." VAR_STOREB " .S CR
     DROP
     + BA WB
 ;
 
 : VAR_PUT_PROP ( value prop obj n -- )
+    ." VAR_PUT_PROP " .S CR
     DROP
     FIND_PROP ( value ra? )
     DUP 0= IF
@@ -1138,6 +1249,7 @@ VARIABLE WORDS_PARSED
 : DRAW_STATUS_LINE ( -- ) ;
 
 : VAR_READ ( parse text n -- )
+    ." VAR_READ " .S CR
   DROP
   BA SWAP BA SWAP ( parse_ra text_ra )
   DRAW_STATUS_LINE
@@ -1150,15 +1262,18 @@ VARIABLE WORDS_PARSED
 
 
 : VAR_PRINT_CHAR ( code n -- )
+    ." VAR_PRINT_CHAR " .S CR
     DROP EMIT
 ;
 
 \ TODO - No trailing space
 : VAR_PRINT_NUM ( num n -- )
+    ." VAR_PRINT_NUM " .S CR
     DROP SIGN .
 ;
 
 : VAR_RANDOM ( range n -- rand )
+    ." VAR_RANDOM " .S CR
     DROP SIGN
     DUP 0< IF ( range )
         SETSEED 0 ( 0 )
@@ -1171,10 +1286,12 @@ VARIABLE WORDS_PARSED
 
 
 : VAR_PUSH ( value n -- )
+    ." VAR_PUSH " .S CR
     DROP PUSH
 ;
 
 : VAR_PULL ( var n -- )
+    ." VAR_PULL " .S CR
     DROP
     POP SWAP ( val var )
     DUP 0= IF
@@ -1187,19 +1304,23 @@ VARIABLE WORDS_PARSED
 
 
 : VAR_SPLIT_WINDOW ( lines n -- )
+    ." VAR_SPLIT_WINDOW " .S CR
     2DROP ." split_window not implemented"
 ;
 
 
 : VAR_SET_WINDOW ( window n -- )
+    ." VAR_SET_WINDOW " .S CR
     2DROP ." set_window not implemented"
 ;
 
 : VAR_OUTPUT_STREAM ( stream n -- )
+    ." VAR_OUTPUT_STREAM " .S CR
     2DROP ." output_stream not implemented"
 ;
 
 : VAR_INPUT_STREAM ( stream n --- )
+    ." VAR_INPUT_STREAM " .S CR
     2DROP ." input_stream not implemeneted"
 ;
 
@@ -1279,7 +1400,8 @@ INIT_VAR
                 -ROT    ( arg3 arg2 arg1 )
                 R>      ( arg3 arg2 arg1 typebyte )
 
-                3 AND DUP 3 < IF ( arg3 arg2 arg1 type4 )
+                DUP 3 AND DUP 3 < IF ( arg3 arg2 arg1 typebyte type4 )
+                    NIP ( arg3 arg2 arg1 type4 )
                     R> 1+ >R \ inc argc
                     GETARG  ( arg3 arg2 arg1 arg4 )
                     SWAP >R ( arg3 arg2 arg4 )
@@ -1293,15 +1415,19 @@ INIT_VAR
     2DROP \ drop the type and typebyte: ( args... RR opcode argc )
     R> R> \ retrieve the other values: ( args.. argc opcode )
 
-
     DUP 5 BIT IF
         \ Bit 5 is set, this is a VAR instruction.
         31 AND ZINTERP_VAR
-    ELSE
-        \ This is a 2OP instruction. Drop the count and call out.
-        NIP ( arg2 arg1 opcode )
+    ELSE ( args.. argc opcode )
         31 AND
-        ZINTERP_2OP
+        DUP 1 = IF \ Special case of VAR JE with multiple arguments
+            DROP ( args.. argc )
+            VAR_JE
+        ELSE
+            \ This is a 2OP instruction. Drop the count and call out.
+            NIP ( arg2 arg1 opcode )
+            ZINTERP_2OP
+        THEN
     THEN
 ;
 
@@ -1378,4 +1504,5 @@ INIT_RESTART
 \ Testing
 HEX BEEF DECIMAL \ Sentinel value on the stack
 S" call.z3" LOAD_STORY
+
 

@@ -1,0 +1,8 @@
+! "Hello World" example program
+
+Object magpie "black-striped bird";
+
+[ Main a;
+    print (name) magpie;
+];
+

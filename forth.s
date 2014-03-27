@@ -413,7 +413,6 @@ NEXT
 
 
 
-/* Following Jonesforth and breaking the ANS standard by returning 0 and 1, not 0 and 0xffffffff */
 name_EQU:
 .word name_SHR
 .byte 1
@@ -425,7 +424,7 @@ code_EQU:
 pop {r0,r1}
 mov r2, #0
 cmp r0, r1
-addeq r2, r2, #1
+subeq r2, r2, #1
 push {r2}
 NEXT
 
@@ -441,7 +440,7 @@ code_NEQU:
 pop {r0,r1}
 mov r2, #0
 cmp r0, r1
-addne r2, r2, #1
+subne r2, r2, #1
 push {r2}
 NEXT
 
@@ -457,7 +456,7 @@ code_GT:
 pop {r0,r1}
 mov r2, #0
 cmp r1, r0
-addgt r2, r2, #1
+subgt r2, r2, #1
 push {r2}
 NEXT
 
@@ -472,7 +471,7 @@ code_GTU:
 pop {r0,r1}
 mov r2, #0
 cmp r1, r0
-addhi r2, r2, #1
+subhi r2, r2, #1
 push {r2}
 NEXT
 
@@ -488,7 +487,7 @@ code_LT:
 pop {r0,r1}
 mov r2, #0
 cmp r1, r0
-addlt r2, r2, #1
+sublt r2, r2, #1
 push {r2}
 NEXT
 
@@ -503,7 +502,7 @@ code_LTU:
 pop {r0,r1}
 mov r2, #0
 cmp r0, r1
-addhi r2, r2, #1
+subhi r2, r2, #1
 push {r2}
 NEXT
 
@@ -519,7 +518,7 @@ code_GE:
 pop {r0,r1}
 mov r2, #0
 cmp r1, r0
-addge r2, r2, #1
+subge r2, r2, #1
 push {r2}
 NEXT
 
@@ -535,7 +534,7 @@ code_LE:
 pop {r0,r1}
 mov r2, #0
 cmp r1, r0
-addle r2, r2, #1
+suble r2, r2, #1
 push {r2}
 NEXT
 
@@ -552,7 +551,7 @@ code_ZEQU:
 pop {r0}
 mov r2, #0
 cmp r0, #0
-addeq r2, r2, #1
+subeq r2, r2, #1
 push {r2}
 NEXT
 
@@ -568,7 +567,7 @@ code_ZNEQU:
 pop {r0}
 mov r2, #0
 cmp r0, #0
-addne r2, r2, #1
+subne r2, r2, #1
 push {r2}
 NEXT
 
@@ -584,7 +583,7 @@ code_ZLT:
 pop {r0}
 mov r2, #0
 cmp r0, #0
-addmi r2, r2, #1
+submi r2, r2, #1
 push {r2}
 NEXT
 
@@ -600,7 +599,7 @@ code_ZGT:
 pop {r0}
 mov r2, #0
 cmp r0, #0
-addgt r2, r2, #1
+subgt r2, r2, #1
 push {r2}
 NEXT
 
@@ -616,7 +615,7 @@ code_ZLE:
 pop {r0}
 mov r2, #0
 rsbs r0, r0, #0
-addpl r2, r2, #1
+subpl r2, r2, #1
 push {r2}
 NEXT
 
@@ -632,7 +631,7 @@ code_ZGE:
 pop {r0}
 mov r2, #0
 cmp r0, #0
-addge r2, r2, #1
+subge r2, r2, #1
 push {r2}
 NEXT
 
@@ -1549,8 +1548,21 @@ bx lr
 
 
 
-name_TCFA:
+name_BACKSLASH:
 .word name_FIND
+.byte 0x81   /* IMMED + 1 */
+.ascii "\"
+.align
+BACKSLASH:
+.word code_BACKSLASH
+code_BACKSLASH:
+/* Skip everything up to end-of-line. Simple: just REFILL */
+bl _refill
+NEXT
+
+
+name_TCFA:
+.word name_BACKSLASH
 .byte 4
 .ascii ">CFA"
 .align

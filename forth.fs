@@ -1,5 +1,5 @@
 \ Forth ARM
-\ Copyright 2013 Braden Shepherdson
+\ Copyright 2014 Braden Shepherdson
 \ Version 1
 
 \ This is a Forth system
@@ -20,7 +20,7 @@
 : NEGATE 0 SWAP - ;
 
 \ Standard words for booleans
-: TRUE 1 ;
+: TRUE -1 ;
 : FALSE 0 ;
 : NOT 0= ;
 
@@ -42,7 +42,7 @@
 
 \ Compiles IMMEDIATE words.
 : [COMPILE] IMMEDIATE
-    WORD  \ get the next word
+    PARSE-NAME  \ get the next word
     FIND  \ find it in the dict
     >CFA  \ get its codeword
     ,     \ and compile it.
@@ -131,20 +131,7 @@
 
 
 : ( IMMEDIATE
-    1 \ tracking depth
-    BEGIN
-        KEY \ read next char
-        DUP 40 = IF \ open (
-            DROP \ drop it
-            1+ \ bump the depth
-        ELSE
-            41 = IF \ close )
-               1- \ dec depth
-            THEN
-        THEN
-    DUP 0= UNTIL \ depth == 0
-    DROP \ drop the depth
-  ;
+    ')' PARSE 2DROP ;
 
 : NIP ( x y -- y ) SWAP DROP ;
 : TUCK ( x y -- y x y )
@@ -282,64 +269,6 @@
     1 HERE +! \ Increment HERE
 ;
 
-
-: .S_COMP
-    ' LITSTRING ,
-    HERE @ \ address
-    0 ,    \ dummy length
-    BEGIN
-        KEY        \ next char
-        DUP 34 <>  \ ASCII "
-    WHILE
-        C, \ copy character
-    REPEAT
-    DROP \ drop the "
-    DUP HERE @ SWAP - \ length
-    4-
-    SWAP ! \ set length
-    ALIGN
-  ;
-
-: .S_INTERP
-    HERE @ \ temp space
-    BEGIN
-        KEY
-        DUP 34 <>  \ ASCII "
-    WHILE
-        OVER C! \ save character
-        1+     \ bump address
-    REPEAT
-    DROP     \ drop the "
-    HERE @ - \ calculate length
-    HERE @   \ push start addr
-    SWAP     \ addr len
-  ;
-
-: S" IMMEDIATE ( -- addr len )
-    STATE @ IF \ compiling?
-        .S_COMP
-    ELSE \ immediate mode
-        .S_INTERP
-    THEN
-  ;
-
-
-
-: ." IMMEDIATE ( -- )
-    STATE @ IF \ compiling?
-        [COMPILE] S"
-        ' TELL ,
-    ELSE
-        \ Just read and print
-        BEGIN
-            KEY
-            DUP 34 = IF \ "
-                DROP EXIT
-            THEN
-            EMIT
-        AGAIN
-    THEN
-  ;
 
 
 : CONSTANT
@@ -532,4 +461,34 @@ WELCOME
 \ Drops the values from RS.
 : UNLOOP \ ( -- )
   R> R> R> 2DROP >R ;
+
+
+: S" IMMEDIATE ( -- addr len )
+    STATE @ IF \ compiling?
+        ' LITSTRING ,
+        34 PARSE \ addr len
+        DUP ,    \ addr len (and the length compiled in)
+        HERE @ \ src len dst
+        SWAP   \ src dst len
+        DUP HERE +! \ src dst len - move HERE to make room
+
+        0 DO \ src dst
+            OVER I + C@ \ src dst val
+            OVER I + C! \ src dst
+        LOOP
+        2DROP
+        ALIGN
+    THEN
+;
+
+: ." IMMEDIATE ( -- )
+    STATE @ IF \ compiling?
+        [COMPILE] S"
+        ' TELL ,
+    ELSE
+        \ Just read and print
+        34 PARSE \ addr len
+        TELL
+    THEN
+  ;
 

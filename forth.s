@@ -1153,43 +1153,180 @@ NEXT
 
 /* Input and output */
 
-name_KEY:
+
+/* Raw Parser flow: */
+/* 1. Read characters until the delimiter or end of parse area. */
+/* 2. Adjust >IN (input_offset) */
+/* 3. Return address and length of parsed input. */
+
+/* Expects the delimiter in r0. */
+/* Clobbers r0-r4 */
+/* Returns the length of the found string in r0, and its address in r1. */
+_parse_delimiter:
+ldr r2, =input_source     /* The cell holding the input source address. */
+ldr r2, [r2]              /* The input source address itself. */
+add r1, r2, #SRC_BUF            /* The address of the parse buffer pointer. */
+ldr r1, [r1]              /* The actual parse buffer address. */
+add r2, r2, #SRC_TOP       /* The address of the parse buffer top pointer. */
+ldr r2, [r2]              /* The actual parse buffer top. */
+mov r3, r1
+
+/* Now r0 holds the delimiter, r1 the adress of the start (permanent), r2 the address of the end, */
+/* and r3 the address of the start, used as the loop counter. */
+_parse_delimiter_loop:
+cmp r2, r3
+  beq _parse_delimiter_end
+/* Read the character at the current position */
+ldrb r4, [r3]
+cmp r0, r4
+  beq _parse_delimiter_found
+
+/* Now some special-case handling for spaces. */
+/* If the delimiter is 32 (space), then accept space, or tab, or NL or CR */
+cmp r0, #32
+  bne _parse_delimiter_loop_bump
+
+/* If we come to here, it is a space. So we check r0 against 10, 13, and 9 (tab). */
+cmp r0, #10
+  beq _parse_delimiter_found
+cmp r0, #13
+  beq _parse_delimiter_found
+cmp r0, #9
+  beq _parse_delimiter_found
+
+/* Not found, so move on one. */
+_parse_delimiter_loop_bump:
+add r3, r3, #1
+b _parse_delimiter_loop
+
+/* We found the delimiter. Adjust >IN and return the string. */
+_parse_delimiter_found:
+sub r0, r3, r1 /* Put the difference into r0: this is the length of the string */
+ldr r2, =input_source
+ldr r2, [r2]   /* The base of the input source. */
+add r2, r2, #SRC_BUF
+add r3, r3, #1  /* Bump the running pointer by one so it's after the delimiter. */
+str r3, [r2]    /* And store the new parse pointer into the input source. */
+bx lr /* and return */
+
+
+/* If we reached the end, it's similar to finding the delimiter, but not the same. */
+/* We put the length into >IN and return the address and length. */
+/* At entry here, we have r0 the delimiter, r1 the start address, r2 the end address, r3 counter (end) */
+_parse_delimiter_end:
+sub r0, r2, r1   /* The difference is the length. */
+ldr r2, =input_source
+ldr r2, [r2]     /* The input source base pointer. */
+add r2, r2, #SRC_BUF
+str r3, [r2]     /* Store the end-pointer into the buffer field. That is, this source needs refilling. */
+/* Now the length is in r0 and the string address in r1: so return */
+bx lr
+
+
+
+/* PARSE-WORD: Skip leading delimiters, and then parse a delimited name. */
+/* Expects the delimiter in r0. */
+/* Clobbers r0-r6 */
+/* Returns the address in r1 and length in r0, like _parse_delimiter. */
+/* NB: DOES NOT refill the buffer. That's QUIT's job. */
+
+_parse_word:
+ldr r6, =input_source
+ldr r6, [r6]           /* r6 holds the input source pointer. */
+add r2, r6, #SRC_BUF
+ldr r2, [r2]           /* r2 is the start of the parse buffer */
+mov r3, r2             /* And r3 is the loop counter. */
+add r4, r6, #SRC_TOP
+ldr r4, [r4]           /* and r4 is the address above the buffer */
+
+/* Now we loop over whitespace characters until a non-whitespace character or end-of-buffer. */
+_parse_word_loop:
+cmp r4, r3
+  beq _parse_word_end
+
+ldrb r5, [r3] /* Read the character */
+cmp r5, r0
+  bne _parse_word_nondelim
+
+add r3, r3, #1
+b _parse_word_loop
+
+_parse_word_nondelim:
+/* If we get here, we found a non-delimiter character. Update input_offset and call parse_delimiter. */
+add r2, r6, #SRC_BUF
+str r3, [r2]        /* Write the new source position (r3) into the input source. */
+/* Now tail-call parse-delimiter. The delimiter is still in r0. */
+b _parse_delimiter
+
+
+/* And if we reached the end of the buffer, we return a length of 0 and the address of the end of the buffer. */
+/* Also needs to update the buffer pointer in the input source. */
+_parse_word_end:
+add r2, r6, #SRC_BUF
+str r4, [r2]        /* Store the top pointer (r4) into the input source buffer field. */
+mov r0, #0
+mov r1, r4    /* Return a length of 0. The pointer is undefined; I use the top pointer (r4). */
+bx lr
+
+
+
+/* Now we define the Forth words for the above two operations. */
+name_PARSE:
 .word name_DSPSTORE
+.byte 5
+.ascii "PARSE"
+.align
+PARSE:
+.word code_PARSE
+code_PARSE:
+/* Get the delimiter from the stack into r0. */
+pop {r0}
+bl _parse_delimiter
+/* Now r0 is the length and r1 the address. */
+push {r1}
+push {r0}
+NEXT
+
+name_PARSE_NAME:
+.word name_PARSE
+.byte 10
+.ascii "PARSE-NAME"
+.align
+PARSE_NAME:
+.word code_PARSE_NAME
+code_PARSE_NAME:
+mov r0, #32
+bl _parse_word
+push {r1}
+push {r0}
+NEXT
+
+
+
+name_KEY:
+.word name_PARSE_NAME
 .byte 3
 .ascii "KEY"
 .align
 KEY:
 .word code_KEY
+_key_buffer:
+.word 0
 code_KEY:
-bl _key
-push {r0}
-NEXT
-/* TODO - Local echo? */
-
-
-/* No input, returns a character in r0 */
-/* Clobbers r0-r2 + r7 + lr */
-_key:
-push {lr}
-_key_inner:
-ldr r0, =current_fd
-ldr r0, [r0]
-ldr r1, =key_buffer
+/* Read a key directly from the keyboard. */
+/* Make the system call to read 1 byte from stdin. */
+mov r7, #__NR_read
+mov r0, #stdin
+ldr r1, =_key_buffer
 mov r2, #1
-bl read
+swi #0
+/* Now r0 holds the number of characters read. */
+/* TODO: Handle this better? It's just being assumed that I got my character. */
+ldr r1, =_key_buffer
+ldrb r1, [r1]
+push {r1}
+NEXT
 
-/* Check for a read of zero */
-cmp r0, #0
-  beq _key_eof
-
-ldr r0, =key_buffer
-ldrb r0, [r0]
-pop {pc}
-
-_key_eof:
-/* Load a new file, or stdin */
-bl _load_files
-b _key_inner
 
 
 name_EMIT:
@@ -1208,7 +1345,7 @@ NEXT
 /* Clobbers r0-r2, and r7 */
 _emit:
 push {lr}
-ldr r1, =key_buffer
+ldr r1, =_key_buffer
 strb r0, [r1]
 mov r0, #stdout
 mov r2, #1
@@ -1225,69 +1362,10 @@ name_WORD:
 WORD:
 .word code_WORD
 code_WORD:
-bl _word /* returns with r0 = address, r1 = length */
-push {r0}
-push {r1}
+pop {r0} /* Pop the delimiter. */
+bl _parse_word /* And find it. Now r0 = length, r1 = address */
+push {r0, r1}
 NEXT
-
-
-/* Returns the buffer address in r0 and the length in r1 */
-/* Clobbers r0-r2, r6, r7, and lr. */
-_word:
-push {lr}
-_word_top:
-bl _key
-cmp r0, #0x5c /* backslash, the start of a line comment */
-beq _word_comment
-cmp r0, #0x20 /* space, keep searching for real letters */
-beq _word_top
-cmp r0, #0x0d /* carriage return, keep searching */
-beq _word_top
-cmp r0, #0x0a /* newline, keep searching */
-beq _word_top
-cmp r0, #0x09 /* tap, keep searching */
-beq _word_top
-
-/* If we got down here, found a real letter. */
-ldr r6, =_word_buffer
-_word_main:
-strb r0, [r6]
-add r6, r6, #1
-bl _key
-
-cmp r0, #0x10 /* backspace */
-  beq _word_backspace
-cmp r0, #0x20 /* space, so jump down */
-  beq _word_complete
-cmp r0, #0x0d /* carriage return, jump down */
-  beq _word_complete
-cmp r0, #0x0a /* newline, jump down */
-  beq _word_complete
-
-b _word_main /* loop */
-
-_word_complete:
-ldr r0, =_word_buffer
-sub r1, r6, r0 /* r1 now holds the length. */
-pop {pc}
-
-
-/*
-Handle backspace
-Bump the pointer back by two so it'll overwrite the previous good letter and then be set to overwrite the bad one.
-Kind of a hack, but it works.
-*/
-_word_backspace:
-sub r6, r6, #2
-ldr r0, [r6]
-b _word_main
-
-/* And the code to skip past a comment: */
-_word_comment:
-bl _key
-cmp r0, #0x0a /* newline, end of comment */
-  beq _word_top
-b _word_comment
 
 
 
@@ -1407,7 +1485,7 @@ NEXT
 /*
 Expects the length in r2, address in r3.
 Returns the address of the dictionary entry in r0.
-Clobbers r0-r3
+Clobbers r0-r5
 */
 _find:
 
@@ -1628,7 +1706,7 @@ name_COLON:
 COLON:
 .word DOCOL
 /* Get the name of the new word. */
-.word WORD
+.word PARSE_NAME
 /* Create the header */
 .word CREATE
 /* Append the codeword, DOCOL */
@@ -1902,6 +1980,7 @@ QUIT:
 /* Deliberately no EXIT call here */
 
 
+
 name_INTERPRET:
 .word name_QUIT
 .byte 9
@@ -1911,19 +1990,43 @@ INTERPRET:
 .word code_INTERPRET
 code_INTERPRET:
 
-bl _word /* r0 has the address, r1 the length */
+/* Main interpreter loop. Refills the buffer to get a line of input, then parses and executes each word. */
+/* Check if there's anything more to parse. */
+ldr r0, =input_source
+ldr r0, [r0]      /* r0 is the input source pointer. */
+add r1, r0, #SRC_BUF
+ldr r1, [r1]      /* r1 is the parse buffer pointer. */
+add r2, r0, #SRC_TOP
+ldr r2, [r2]      /* r2 is the parse buffer top. */
+cmp r0, r1
+  bleq _interpret_refill_needed
 
-/* Not a literal number (at least not yet) */
+/* Now, either way, there's more to be read. */
+/* Note that the r0 and r1 from above are now invalidated. */
+/* Now we begin a loop of parsing names and executing them until we run out of buffer and get 0 back. */
+mov r0, #32
+bl _parse_word
+
+/* Now r0 is the length and r1 the address. */
+cmp r0, #0
+  beq code_INTERPRET
+
+/* If not, we've got a valid word here to be parsed. */
+/* It's not a literal number (at least not yet) */
 ldr r2, =interpret_is_lit
 mov r3, #0
 str r3, [r2]
 
-/* Adjust for the differences between my FIND and WORD. TODO: Clean this up. */
-mov r2, r1
-mov r3, r0
-mov r9, r1 /* Save r1 */
+/* Find:
+Expects the length in r2, address in r3.
+Returns the address of the dictionary entry in r0.
+Clobbers r0-r5
+*/
+mov r2, r0
+mov r3, r1
+mov r8, r0 /* Save r0, the length */
+mov r9, r1 /* Save r1, the address */
 bl _find
-mov r1, r9 /* And restore */
 
 cmp r0, #0
   beq _interpret_not_in_dict
@@ -1945,13 +2048,15 @@ b _interpret_compile_check
 
 _interpret_not_in_dict:
 /* Not in the dictionary, so assume it's a literal number. */
-ldr r9, =interpret_is_lit
-mov r8, #1
-str r8, [r9]
+/* At this point, the length is in r8 and the address in r9. */
+ldr r7, =interpret_is_lit
+mov r6, #1
+str r6, [r7]
 
 /* _NUMBER expects the length in r2 and the address in r3. */
 /* It returns the number in r0 and the number unparsed in r2. */
-mov r2, r1 /* The length was in r1, now in r2 */
+mov r2, r8
+mov r3, r9
 bl _number
 
 cmp r2, #0
@@ -2019,19 +2124,157 @@ _interpret_end:
 NEXT
 
 
+/* Called as part of interpret, handles calling REFILL and popping empty input sources. */
+/* Clobbers lots of things, including lr. */
+_interpret_refill_needed:
+push {lr}
+/* First calls refill. */
+_interpret_refill_needed_loop:
+bl _refill
+/* r0 now holds the flag value: 0 for failure, -1 for success. */
+cmp r0, #0
+  popne {pc} /* If it's nonzero, it succeeded, so return. */
+
+/* If we get here, the refill failed. Therefore we pop the input source and try again. */
+ldr r0, =input_source /* r0 holds the cell for the input source */
+ldr r1, [r0]          /* r1 holds the base pointer for the current input source. */
+sub r1, r1, #512      /* Adjust it to the previous source. */
+str r1, [r0]          /* And write that into the variable. */
+
+ldr r0, =input_source_top
+ldr r0, [r0]          /* Load the input source top value. This is the pointer to the keyboard; if we've gone below that, quit. */
+cmp r0, r1
+  popge {pc} /* We still have a valid source. Return and let INTERPRET try to read what's already in it. */
+
+/* At this point, we have run out of valid input sources. */
+/* Even the keyboard has failed, which suggests a Ctrl-D or similar end-of-input. Therefore we exit with success. */
+mov r7, #__NR_exit
+mov r0, #0
+swi #0
+/* Never returns */
+
+
+
+name_REFILL:
+.word name_INTERPRET
+.byte 6
+.ascii "REFILL"
+.align
+REFILL:
+.word code_REFILL
+code_REFILL:
+bl _refill
+push {r0}
+NEXT
+
+/* REFILL re-loads the parse buffer from the input source and returns a flag. */
+/* If the input source is the keyboard, read a line. */
+/* If the input source is an EVALUATEd string, do nothing and return false. */
+/* If the input source is a file, read a line from it. */
+/* If the input source is a block, bump BLK to the next block and load it. */
+/* If any given input source is empty, we will fail to load from it. INTERPRET calls REFILL, and when */
+/* REFILL fails, it pops the input source and refills from there. */
+
+/* Returns a flag in r0. Clobbers a bunch of things. */
+_refill:
+push {lr}
+ldr r0, =input_source
+ldr r0, [r0]   /* r0 holds the input source base pointer. */
+/* Now load the type into r1 and dispatch on it. */
+add r1, r0, #SRC_TYPE
+ldr r1, [r1]
+
+/* TODO: Handle blocks and files. */
+cmp r1, #0
+  beq _refill_keyboard
+
+/* Refilling from EVALUATE: do nothing and return false. */
+mov r0, #0
+pop {pc}
+
+/* Refilling from the keyboard: Call getchar repeatedly, storing into the input source's buffer. */
+_refill_keyboard:
+/* Use to-be-saved registers here so that the getchar calls will preserve them. */
+ldr r7, =input_source
+ldr r7, [r7]
+add r8, r7, #SRC_START  /* r8 holds the current pointer where new characters should go. */
+add r9, r8, #PARSE_BUFFER_LEN /* r9 holds the top, don't write past here. */
+
+_refill_keyboard_loop:
+bl getchar    /* r0 now holds the next character. */
+mvn r1, #0
+cmp r0, r1
+  beq _refill_keyboard_done /* EOF found. */
+
+cmp r0, #13
+  beq _refill_keyboard_done /* CR found. */
+cmp r0, #10
+  beq _refill_keyboard_done /* NL found. */
+
+/* Otherwise, write this value into the buffer and loop. */
+strb r0, [r8]
+add r8, r8, #1
+
+cmp r8, r9
+  blt _refill_keyboard_loop
+
+/* When we come down here, either falling through or jumping, we have r8 pointing after the last character. */
+_refill_keyboard_done:
+add r0, r7, #SRC_TOP
+str r8, [r0]        /* Store the r8 running pointer into the top field. */
+add r9, r7, #SRC_START /* r8 now holds the start pointer. */
+add r0, r7, #SRC_BUF
+str r9, [r0]          /* which we store into the buffer field. */
+
+mvn r0, #0 /* Load -1, a true flag, and return. */
+pop {pc}
+
+
+name_EVALUATE:
+.word name_REFILL
+.byte 8
+.ascii "EVALUATE"
+.align
+EVALUATE:
+.word code_EVALUATE
+code_EVALUATE:
+pop {r0, r1}  /* r0 = length, r1 = address */
+/* Create a new input source above the current one, and aim it at the evaluated string. */
+add r2, r1, r0  /* r2 now holds the top pointer for the string. */
+
+ldr r3, =input_source
+ldr r4, [r3]
+add r4, r4, #INPUT_SOURCE_SIZE
+str r4, [r3]   /* Write the new input source's location into the variable. */
+
+add r5, r4, #SRC_TYPE
+mov r0, #1  /* Load the type for an EVALUATE string. */
+str r0, [r5] /* And write the type into the field. */
+
+add r5, r4, #SRC_BUF
+str r1, [r5] /* Write the beginning pointer into the buffer field. */
+add r5, r4, #SRC_TOP
+str r2, [r5] /* Write the top pointer into the top field. */
+
+b code_INTERPRET /* XXX: Is this accurate? */
+
+
+
+
 /* Odds and ends */
 
 name_CHAR:
-.word name_INTERPRET
+.word name_EVALUATE
 .byte 4
 .ascii "CHAR"
 .align
 CHAR:
 .word code_CHAR
 code_CHAR:
-bl _word /* Address in r0 */
-ldrb r0, [r0] /* Get the letter */
-push {r0} /* push it */
+mov r0, #32 /* Delimit by spaces. */
+bl _parse_word /* Address in r1, length in r0 */
+ldrb r1, [r1] /* Get the letter */
+push {r1} /* push it */
 NEXT
 
 
@@ -2063,43 +2306,6 @@ NEXT
 /* EXECUTE needs to be the last word, or the initial value of var_LATEST needs updating. */
 
 
-
-/* Reads argc and argv, and queues up the next file if there are more */
-_load_files:
-push {r0,r1,r7,r8,r9,lr}
-ldr r8, =argc
-ldr r7, [r8]
-cmp r7, #0
-  bgt _load_files_load
-
-/* Otherwise, we're just setting the file to stdin */
-ldr r0, =current_fd
-mov r1, #stdin
-str r1, [r0]
-b _load_files_done
-
-_load_files_load:
-ldr r9, =argv
-ldr r0, [r9] /* r0 holds the argv pointer */
-ldr r0, [r0] /* r0 holds the char* */
-mov r1, #0   /* 0 is O_RDONLY */
-bl open
-
-ldr r1, =current_fd
-str r0, [r1]
-
-ldr r0, [r9]
-add r0, r0, #4 /* advance the argv pointer */
-str r0, [r9]
-
-sub r7, r7, #1
-str r7, [r8] /* write back argc */
-
-_load_files_done:
-pop {r0,r1,r7,r8,r9,pc}
-
-
-
 .globl main
 main:
 /* Check for the command-line args, and set aside their values */
@@ -2128,7 +2334,7 @@ ldr r0, =var_S0
 str sp, [r0]
 
 /* Load the first file, if applicable */
-bl _load_files
+/* bl _load_files */
 
 /* And launch the interpreter */
 ldr r0, =QUIT
@@ -2158,11 +2364,31 @@ var_S0:
 var_BASE:
 .word 10
 
-key_buffer:
-.word 0
+/* On input buffers:
+- There are 16 input sources here. Each is 512 bytes long, and has the following form:
+  - 4 bytes: input source type (0 = keyboard, 1 = EVALUATE string, 2 = file, 3 = block)
+  - 4 bytes: parse buffer position (points to the current parse position)
+  - 4 bytes: parse buffer top (points to after the current parse field)
+  - 4 bytes: data value (keyboard: empty, EVALUATE: empty, file: fileid, block: blockid)
+  - 496 bytes: input buffer itself. Not used for blocks, but still present.
+- input_source_top points at the first entry (the keyboard)
+- input_source points at the current entry
+*/
+input_spec_space:
+.space 8192, 0  /* 8K = 16 * 512-byte entries, allowing 16 layers of nesting. */
+input_source_top:
+.word input_spec_space
+input_source:
+.word input_spec_space
 
-_word_buffer:
-.space 32
+.equ SRC_TYPE, 0
+.equ SRC_BUF, 4
+.equ SRC_TOP, 8
+.equ SRC_DATA, 12
+.equ SRC_START, 16
+
+.equ PARSE_BUFFER_LEN, 496
+.equ INPUT_SOURCE_SIZE, 512
 
 
 interpret_is_lit:

@@ -1142,9 +1142,10 @@ NEXT
 
 
 /* Syscalls and other constants */
+.set __NR_open, 5
+.set __NR_close, 6
 .set __NR_read, 3
 .set __NR_write, 4
-.set __NR_brk, 45
 .set __NR_exit, 93
 
 .set stdin, 1
@@ -1551,7 +1552,7 @@ bx lr
 name_BACKSLASH:
 .word name_FIND
 .byte 0x81   /* IMMED + 1 */
-.ascii "\"
+.ascii "\\"
 .align
 BACKSLASH:
 .word code_BACKSLASH
@@ -2196,9 +2197,11 @@ ldr r0, [r0]   /* r0 holds the input source base pointer. */
 add r1, r0, #SRC_TYPE
 ldr r1, [r1]
 
-/* TODO: Handle blocks and files. */
+/* TODO: Handle blocks. */
 cmp r1, #0
   beq _refill_keyboard
+cmp r1, #2
+  beq _refill_file
 
 /* Refilling from EVALUATE: do nothing and return false. */
 mov r0, #0
@@ -2240,6 +2243,49 @@ str r9, [r0]          /* which we store into the buffer field. */
 
 mvn r0, #0 /* Load -1, a true flag, and return. */
 pop {pc}
+
+
+_refill_file:
+ldr r8, =input_source
+ldr r8, [r8]   /* r8 is the input source pointer. */
+add r9, r8, #SRC_DATA
+ldr r9, [r9]  /* Load the fd into r9. */
+add r6, r8, #SRC_START /* And the starting pointer into r6. */
+
+_refill_file_loop:
+mov r7, #__NR_read
+mov r0, r9  /* The fd. */
+mov r1, r6  /* The pointer. */
+mov r2, #1  /* Length 1 */
+swi #0
+
+cmp r0, #0  /* 0 indicates an error or EOF, so return an error. */
+  beq _refill_file_empty
+
+ldr r1, [r6] /* Load the character we just read. */
+cmp r1, #10  /* NL */
+  beq _refill_file_done
+cmp r1, #13  /* CR */
+  beq _refill_file_done
+
+/* If we got down here, this is a regular character, and we should loop. */
+add r6, r6, #1 /* Bump the pointer */
+b _refill_file_loop
+
+_refill_file_done:
+add r7, r8, #SRC_TOP
+str r6, [r7] /* Store the top pointer. */
+add r7, r8, #SRC_BUF
+add r6, r8, #SRC_START
+str r6, [r7] /* And the start pointer. */
+
+mvn r0, #0 /* Return true. */
+pop {pc}
+
+_refill_file_empty:
+mov r0, #0  /* Return false. */
+pop {pc}
+
 
 
 name_EVALUATE:
@@ -2318,6 +2364,69 @@ NEXT
 /* EXECUTE needs to be the last word, or the initial value of var_LATEST needs updating. */
 
 
+/* Loads every filename from argv into the input sources, but in reverse order. */
+_load_files:
+push {lr}
+ldr r8, =argc
+ldr r8, [r8]
+ldr r9, =argv
+ldr r9, [r9]
+
+_load_files_loop:
+cmp r8, #0
+  beq _load_files_done
+
+sub r0, r8, #1  /* Knock off one so it's now the index of the highest arg. */
+mul r0, r0, #4  /* Convert to an offset from argv to the next file */
+add r0, r0, r9  /* Address of the next file name. */
+
+mov r1, #O_RDONLY
+mov r7, #__NR_open
+swi #0  /* Now r0 contains the fileid */
+mvn r2, 0
+cmp r2, r0
+  beq _load_files_error
+
+/* Put the fileid into a new entry in the input source list. */
+ldr r2, =input_source
+ldr r1, [r2]
+add r1, r1, #INPUT_SOURCE_SIZE
+str r1, [r2]
+
+add r3, r2, #SRC_TYPE
+mov r4, #2  /* 2 is the type for file */
+str r4, [r3] /* store the type */
+
+add r4, r2, #SRC_START
+add r3, r2, #SRC_BUF
+str r4, [r3] /* Store the start address in the buffer field. */
+add r3, r2, #SRC_TOP
+str r4, [r3] /* And in the top field (therefore buffer is empty). */
+
+add r3, r2, #SRC_DATA
+str r0, [r3]   /* Finally, store the fileid into the data field. */
+
+/* Now I'm done loading the file entry, so now it's time to loop. */
+sub r8, r8, #1  /* Remove one from argc. */
+b _load_files_loop
+
+_load_files_done:
+pop {pc}
+
+_load_files_error:
+ldr r9, =_load_files_error_message
+ldr r8, =_load_files_error_message_len
+ldr r8, [r8]
+bl _tell
+mov r0, #0x0a /*  newline */
+bl _emit
+
+/* And exit with code 1. */
+mov r0, #1
+mov r7, #__NR_exit
+swi #0
+
+
 .globl main
 main:
 /* Check for the command-line args, and set aside their values */
@@ -2345,8 +2454,8 @@ sub sp, sp, #4096 /* Leave 1K words for the return stack */
 ldr r0, =var_S0
 str sp, [r0]
 
-/* Load the first file, if applicable */
-/* bl _load_files */
+/* Load the input files, if applicable */
+bl _load_files
 
 /* And launch the interpreter */
 ldr r0, =QUIT
@@ -2363,6 +2472,12 @@ errmsg:
 .ascii "Interpreter error: Unknown word or bad number."
 errmsglen:
 .word 46
+
+_load_files_error_message:
+.ascii "Could not open input file."
+_load_files_error_message_len:
+.word 26
+
 
 var_STATE:
 .word 0

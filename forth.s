@@ -1151,6 +1151,13 @@ NEXT
 .set stdin, 1
 .set stdout, 2
 
+.set O_RDONLY, 0
+.set O_WRONLY, 1
+.set O_RDWR, 2
+.set O_CREAT, 64
+.set O_TRUNC, 512
+
+
 /* Input and output */
 
 
@@ -1310,8 +1317,6 @@ name_KEY:
 .align
 KEY:
 .word code_KEY
-_key_buffer:
-.word 0
 code_KEY:
 /* Read a key directly from the keyboard. */
 /* Make the system call to read 1 byte from stdin. */
@@ -2011,7 +2016,7 @@ add r1, r0, #SRC_BUF
 ldr r1, [r1]      /* r1 is the parse buffer pointer. */
 add r2, r0, #SRC_TOP
 ldr r2, [r2]      /* r2 is the parse buffer top. */
-cmp r0, r1
+cmp r1, r2
   bleq _interpret_refill_needed
 
 /* Now, either way, there's more to be read. */
@@ -2376,14 +2381,15 @@ _load_files_loop:
 cmp r8, #0
   beq _load_files_done
 
-sub r0, r8, #1  /* Knock off one so it's now the index of the highest arg. */
-mul r0, r0, #4  /* Convert to an offset from argv to the next file */
+sub r2, r8, #1  /* Knock off one so it's now the index of the highest arg. */
+mov r1, #4      /* Can't multiply with a literal, I guess. */
+mul r0, r2, r1  /* Convert to an offset from argv to the next file */
 add r0, r0, r9  /* Address of the next file name. */
 
 mov r1, #O_RDONLY
 mov r7, #__NR_open
 swi #0  /* Now r0 contains the fileid */
-mvn r2, 0
+mvn r2, #0
 cmp r2, r0
   beq _load_files_error
 
@@ -2490,6 +2496,9 @@ var_S0:
 
 var_BASE:
 .word 10
+
+_key_buffer:
+.word 0
 
 /* On input buffers:
 - There are 16 input sources here. Each is 512 bytes long, and has the following form:

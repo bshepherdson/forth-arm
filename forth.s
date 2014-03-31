@@ -1184,8 +1184,8 @@ mov r3, r1
 /* Now r0 holds the delimiter, r1 the adress of the start (permanent), r2 the address of the end, */
 /* and r3 the address of the start, used as the loop counter. */
 _parse_delimiter_loop:
-cmp r2, r3
-  beq _parse_delimiter_end
+cmp r3, r2
+  bge _parse_delimiter_end
 /* Read the character at the current position */
 ldrb r4, [r3]
 cmp r0, r4
@@ -1257,8 +1257,8 @@ ldr r4, [r4]           /* and r4 is the address above the buffer */
 
 /* Now we loop over whitespace characters until a non-whitespace character or end-of-buffer. */
 _parse_word_loop:
-cmp r4, r3
-  beq _parse_word_end
+cmp r3, r4
+  bge _parse_word_end
 
 ldrb r5, [r3] /* Read the character */
 cmp r5, r0
@@ -2034,7 +2034,7 @@ add r1, r1, #SRC_START /* r1 is now a pointer to the start of the parse area. */
 add r2, r0, #SRC_TOP
 ldr r2, [r2]      /* r2 is the parse buffer top. */
 cmp r1, r2
-  bleq _interpret_refill_needed
+  blge _interpret_refill_needed
 
 /* Now, either way, there's more to be read. */
 /* Note that the r0 and r1 from above are now invalidated. */
@@ -2157,6 +2157,38 @@ pop {r8, r9}
 bl _tell
 
 mov r0, #0x0a /*  newline */
+bl _emit
+
+/* Now output the input line */
+ldr r9, =input_source
+ldr r9, [r9]
+add r8, r9, #SRC_TOP
+ldr r8, [r8]
+add r9, r9, #SRC_START
+sub r8, r8, r9  /* Length goes in r8, address in r9 */
+bl _tell
+
+mov r0, #10
+bl _emit
+
+ldr r9, =input_source
+ldr r9, [r9]
+add r8, r9, #SRC_POS
+ldr r8, [r8]    /* r8 is the position in the input buffer. */
+/* Output r8-many spaces, then a caret ^ (ASCII 94) */
+
+_interpret_illegal_number_loop:
+cmp r8, #0
+  beq _interpret_illegal_number_end
+mov r0, #32
+bl _emit
+sub r8, r8, #1
+b _interpret_illegal_number_loop
+
+_interpret_illegal_number_end:
+mov r0, #94  /* ^ */
+bl _emit
+mov r0, #10
 bl _emit
 
 _interpret_end:

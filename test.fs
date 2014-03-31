@@ -1,2 +1,2 @@
-: TEST S" Testing a string insertion." TELL ;
+: TEST S" 65 EMIT" EVALUATE CR ;
 TEST

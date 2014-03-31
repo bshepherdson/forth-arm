@@ -469,6 +469,8 @@
         2DROP
         ALIGN
     THEN
+    \ TODO: Write the interpretation version, that copies to HERE without moving the HERE-pointer.
+    \ Or can it get away with using the keyboard input buffer?
 ;
 
 : ." IMMEDIATE ( -- )
@@ -480,14 +482,13 @@
         34 PARSE \ addr len
         TELL
     THEN
-  ;
+;
 
 : WELCOME
     ." FORTH ARM" CR
     ." by Braden Shepherdson" CR
     ." version " VERSION . CR
 ;
-
 WELCOME
-\ HIDE WELCOME
+
 

@@ -2007,6 +2007,7 @@ QUIT:
 .word DOCOL
 .word _R0
 .word RSPSTORE
+_quit_inner:
 .word INTERPRET
 .word BRANCH
 .word -8
@@ -2210,16 +2211,28 @@ cmp r0, #0
 _interpret_refill_needed_pop:
 ldr r0, =input_source /* r0 holds the cell for the input source */
 ldr r1, [r0]          /* r1 holds the base pointer for the current input source. */
-sub r1, r1, #512      /* Adjust it to the previous source. */
+sub r1, r1, #INPUT_SOURCE_SIZE
 str r1, [r0]          /* And write that into the variable. */
 
 ldr r0, =input_source_top
 ldr r0, [r0]          /* Load the input source top value. This is the pointer to the keyboard; if we've gone below that, quit. */
 cmp r1, r0
-  popge {pc} /* We still have a valid source. Return and let INTERPRET try to read what's already in it. */
+  blt _interpret_refill_needed_fail
+/* We still have a valid source. Return and let INTERPRET try to read what's already in it. */
+/* One special-case here, though. If the freshly-popped input source is an EVALUATE string, POPRSP and continue executing. */
+add r1, r1, #INPUT_SOURCE_SIZE
+add r1, r1, #SRC_TYPE
+ldr r1, [r1] /* Load the type of the OLD input source. */
+cmp r1, #1
+  popne {pc}  /* If it wasn't 1 (EVALUATE), return. */
+
+/* It was EVALUATE, so do the special case magic. */
+POPRSP
+NEXT
 
 /* At this point, we have run out of valid input sources. */
 /* Even the keyboard has failed, which suggests a Ctrl-D or similar end-of-input. Therefore we exit with success. */
+_interpret_refill_needed_fail:
 mov r7, #__NR_exit
 mov r0, #0
 swi #0
@@ -2386,9 +2399,16 @@ add r1, r4, #SRC_POS
 mov r5, #0
 str r5, [r1]
 
-b code_INTERPRET /* XXX: Is this correct? */
-
-
+/* Now here's the execution flow for EVALUATE. */
+/* First we PUSHRSP, to put the code after the EVALUATE call into the return stack. */
+/* Then we load the address of the middle of QUIT into r11 and NEXT. */
+/* This will begin an INTERPRET loop, targeting the EVALUATE string as the input buffer. */
+/* When we try to _refill the EVALUATE string's buffer, it fails. */
+/* Special-case code in _interpret_refill_needed will detect that we just popped an EVALUATEd string. */
+/* And it will POPRSP and carry on executing the previous code, rather than returning to INTERPRET. */
+PUSHRSP
+ldr r11, =_quit_inner
+NEXT
 
 
 /* Odds and ends */

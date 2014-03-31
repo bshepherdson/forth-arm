@@ -2131,12 +2131,16 @@ b _interpret_end
 _interpret_illegal_number:
 /* We couldn't find the word in the dictionary, and it isn't */
 /* a number either. Show an error message. */
-/* TODO - Improve the amount of detail in the message. */
 
+push {r8, r9}
 ldr r9, =errmsg
 ldr r8, =errmsglen
 ldr r8, [r8]
 bl _tell
+
+pop {r8, r9}
+bl _tell
+
 mov r0, #0x0a /*  newline */
 bl _emit
 
@@ -2501,10 +2505,10 @@ cold_start:
 .data
 
 errmsg:
-.ascii "Interpreter error: Unknown word or bad number."
+.ascii "Interpreter error: Unknown word or bad number: "
 .align
 errmsglen:
-.word 46
+.word 47
 
 _load_files_error_message:
 .ascii "Could not open input file."

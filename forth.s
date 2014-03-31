@@ -1148,8 +1148,9 @@ NEXT
 .set __NR_write, 4
 .set __NR_exit, 93
 
-.set stdin, 1
-.set stdout, 2
+.set stdin, 0
+.set stdout, 1
+.set stderr, 2
 
 .set O_RDONLY, 0
 .set O_WRONLY, 1
@@ -1193,12 +1194,12 @@ cmp r0, r4
 cmp r0, #32
   bne _parse_delimiter_loop_bump
 
-/* If we come to here, it is a space. So we check r0 against 10, 13, and 9 (tab). */
-cmp r0, #10
+/* If we come to here, it is a space. So we check r4 against 10, 13, and 9 (tab). */
+cmp r4, #10
   beq _parse_delimiter_found
-cmp r0, #13
+cmp r4, #13
   beq _parse_delimiter_found
-cmp r0, #9
+cmp r4, #9
   beq _parse_delimiter_found
 
 /* Not found, so move on one. */
@@ -1563,6 +1564,7 @@ BACKSLASH:
 .word code_BACKSLASH
 code_BACKSLASH:
 /* Skip everything up to end-of-line. Simple: just REFILL */
+/* XXX: Might not work when input source is a block. */
 bl _refill
 NEXT
 
@@ -2154,6 +2156,7 @@ cmp r0, #0
   popne {pc} /* If it's nonzero, it succeeded, so return. */
 
 /* If we get here, the refill failed. Therefore we pop the input source and try again. */
+_interpret_refill_needed_pop:
 ldr r0, =input_source /* r0 holds the cell for the input source */
 ldr r1, [r0]          /* r1 holds the base pointer for the current input source. */
 sub r1, r1, #512      /* Adjust it to the previous source. */
@@ -2161,7 +2164,7 @@ str r1, [r0]          /* And write that into the variable. */
 
 ldr r0, =input_source_top
 ldr r0, [r0]          /* Load the input source top value. This is the pointer to the keyboard; if we've gone below that, quit. */
-cmp r0, r1
+cmp r1, r0
   popge {pc} /* We still have a valid source. Return and let INTERPRET try to read what's already in it. */
 
 /* At this point, we have run out of valid input sources. */
@@ -2267,7 +2270,7 @@ swi #0
 cmp r0, #0  /* 0 indicates an error or EOF, so return an error. */
   beq _refill_file_empty
 
-ldr r1, [r6] /* Load the character we just read. */
+ldrb r1, [r6] /* Load the character we just read. */
 cmp r1, #10  /* NL */
   beq _refill_file_done
 cmp r1, #13  /* CR */
@@ -2283,6 +2286,28 @@ str r6, [r7] /* Store the top pointer. */
 add r7, r8, #SRC_BUF
 add r6, r8, #SRC_START
 str r6, [r7] /* And the start pointer. */
+
+/* DEBUG: Prints the string to stderr. */
+/* First write the '> ' caret. */
+mov r7, #__NR_write
+mov r0, #stderr
+ldr r1, =debug_caret
+mov r2, #2
+swi #0
+
+/* Then the freshly-read string. */
+add r7, r8, #SRC_TOP
+ldr r6, [r7]
+mov r0, #10
+strb r0, [r6]   /* Store a newline. */
+add r6, r6, #1  /* Bump the top pointer (the temp one) to print the newline. */
+add r7, r8, #SRC_BUF
+ldr r1, [r7]     /* Buffer in r1 */
+sub r2, r6, r1   /* Length in r2 */
+mov r0, #stderr
+mov r7, #__NR_write
+swi #0
+
 
 mvn r0, #0 /* Return true. */
 pop {pc}
@@ -2384,7 +2409,8 @@ cmp r8, #0
 sub r2, r8, #1  /* Knock off one so it's now the index of the highest arg. */
 mov r1, #4      /* Can't multiply with a literal, I guess. */
 mul r0, r2, r1  /* Convert to an offset from argv to the next file */
-add r0, r0, r9  /* Address of the next file name. */
+add r0, r0, r9  /* Address of the pointer to the next file name. */
+ldr r0, [r0]    /* Load the address of the file name itself. */
 
 mov r1, #O_RDONLY
 mov r7, #__NR_open
@@ -2399,17 +2425,17 @@ ldr r1, [r2]
 add r1, r1, #INPUT_SOURCE_SIZE
 str r1, [r2]
 
-add r3, r2, #SRC_TYPE
+add r3, r1, #SRC_TYPE
 mov r4, #2  /* 2 is the type for file */
 str r4, [r3] /* store the type */
 
-add r4, r2, #SRC_START
-add r3, r2, #SRC_BUF
+add r4, r1, #SRC_START
+add r3, r1, #SRC_BUF
 str r4, [r3] /* Store the start address in the buffer field. */
-add r3, r2, #SRC_TOP
+add r3, r1, #SRC_TOP
 str r4, [r3] /* And in the top field (therefore buffer is empty). */
 
-add r3, r2, #SRC_DATA
+add r3, r1, #SRC_DATA
 str r0, [r3]   /* Finally, store the fileid into the data field. */
 
 /* Now I'm done loading the file entry, so now it's time to loop. */
@@ -2476,15 +2502,19 @@ cold_start:
 
 errmsg:
 .ascii "Interpreter error: Unknown word or bad number."
+.align
 errmsglen:
 .word 46
 
 _load_files_error_message:
 .ascii "Could not open input file."
+.align
 _load_files_error_message_len:
 .word 26
 
-
+debug_caret:
+.ascii "> "
+.align
 var_STATE:
 .word 0
 

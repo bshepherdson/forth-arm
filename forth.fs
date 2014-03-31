@@ -410,15 +410,6 @@
 ;
 
 
-: WELCOME
-    ." FORTH ARM" CR
-    ." by Braden Shepherdson" CR
-    ." version " VERSION . CR
-;
-
-WELCOME
-\ HIDE WELCOME
-
 
 
 : DO IMMEDIATE \ lim start --
@@ -491,4 +482,13 @@ WELCOME
         TELL
     THEN
   ;
+
+: WELCOME
+    ." FORTH ARM" CR
+    ." by Braden Shepherdson" CR
+    ." version " VERSION . CR
+;
+
+WELCOME
+\ HIDE WELCOME
 

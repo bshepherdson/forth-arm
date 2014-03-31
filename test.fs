@@ -1,5 +1,6 @@
-: foo 65 EMIT ;
-VARIABLE v
-: bar ['] foo ;
-bar v !
-v @ EXECUTE
+\ Comment 1
+\ Comment 2
+65 EMIT
+
+: TEST 6 1 DO I . LOOP CR ;
+TEST

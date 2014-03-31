@@ -1173,8 +1173,10 @@ NEXT
 _parse_delimiter:
 ldr r2, =input_source     /* The cell holding the input source address. */
 ldr r2, [r2]              /* The input source address itself. */
-add r1, r2, #SRC_BUF            /* The address of the parse buffer pointer. */
-ldr r1, [r1]              /* The actual parse buffer address. */
+add r1, r2, #SRC_POS      /* The offset of the parse buffer. */
+ldr r1, [r1]              /* The actual parse buffer offset. */
+add r1, r1, r2
+add r1, r1, #SRC_START    /* Add the input_source position and offset to the buffer. r1 is now the parse buffer pointer. */
 add r2, r2, #SRC_TOP       /* The address of the parse buffer top pointer. */
 ldr r2, [r2]              /* The actual parse buffer top. */
 mov r3, r1
@@ -1210,11 +1212,13 @@ b _parse_delimiter_loop
 /* We found the delimiter. Adjust >IN and return the string. */
 _parse_delimiter_found:
 sub r0, r3, r1 /* Put the difference into r0: this is the length of the string */
-ldr r2, =input_source
-ldr r2, [r2]   /* The base of the input source. */
-add r2, r2, #SRC_BUF
+ldr r4, =input_source
+ldr r4, [r4]   /* The base of the input source. */
+add r2, r4, #SRC_POS
 add r3, r3, #1  /* Bump the running pointer by one so it's after the delimiter. */
-str r3, [r2]    /* And store the new parse pointer into the input source. */
+sub r3, r3, r4
+sub r3, r3, #SRC_START /* Turn the pointer back into an offset. */
+str r3, [r2]    /* And store the new parse offset into the input source. */
 bx lr /* and return */
 
 
@@ -1225,7 +1229,9 @@ _parse_delimiter_end:
 sub r0, r2, r1   /* The difference is the length. */
 ldr r2, =input_source
 ldr r2, [r2]     /* The input source base pointer. */
-add r2, r2, #SRC_BUF
+sub r3, r3, r2
+sub r3, r3, #SRC_START  /* Turn the end pointer back into an offset. */
+add r2, r2, #SRC_POS
 str r3, [r2]     /* Store the end-pointer into the buffer field. That is, this source needs refilling. */
 /* Now the length is in r0 and the string address in r1: so return */
 bx lr
@@ -1241,8 +1247,10 @@ bx lr
 _parse_word:
 ldr r6, =input_source
 ldr r6, [r6]           /* r6 holds the input source pointer. */
-add r2, r6, #SRC_BUF
-ldr r2, [r2]           /* r2 is the start of the parse buffer */
+add r2, r6, #SRC_POS
+ldr r2, [r2]           /* r2 is the offset into the input buffer. */
+add r2, r2, r6
+add r2, r2, #SRC_START /* Turn the offset into a pointer: r2 is the start of the parse buffer. */
 mov r3, r2             /* And r3 is the loop counter. */
 add r4, r6, #SRC_TOP
 ldr r4, [r4]           /* and r4 is the address above the buffer */
@@ -1261,7 +1269,9 @@ b _parse_word_loop
 
 _parse_word_nondelim:
 /* If we get here, we found a non-delimiter character. Update input_offset and call parse_delimiter. */
-add r2, r6, #SRC_BUF
+sub r3, r3, r6
+sub r3, r3, #SRC_START /* Turn our r3 loop counter back into an offset. */
+add r2, r6, #SRC_POS
 str r3, [r2]        /* Write the new source position (r3) into the input source. */
 /* Now tail-call parse-delimiter. The delimiter is still in r0. */
 b _parse_delimiter
@@ -1270,10 +1280,12 @@ b _parse_delimiter
 /* And if we reached the end of the buffer, we return a length of 0 and the address of the end of the buffer. */
 /* Also needs to update the buffer pointer in the input source. */
 _parse_word_end:
-add r2, r6, #SRC_BUF
-str r4, [r2]        /* Store the top pointer (r4) into the input source buffer field. */
+sub r4, r4, r6
+sub r4, r4, #SRC_START /* Turn the top pointer (r4) into an offset. */
+add r2, r6, #SRC_POS
+str r4, [r2]        /* And store it into the position field. */
 mov r0, #0
-mov r1, r4    /* Return a length of 0. The pointer is undefined; I use the top pointer (r4). */
+mov r1, r6    /* Return a length of 0. The pointer is undefined; I use the input source (r6) arbitrarily. */
 bx lr
 
 
@@ -1289,6 +1301,7 @@ PARSE:
 code_PARSE:
 /* Get the delimiter from the stack into r0. */
 pop {r0}
+_parse_inner:
 bl _parse_delimiter
 /* Now r0 is the length and r1 the address. */
 push {r1}
@@ -2014,8 +2027,10 @@ code_INTERPRET:
 /* Check if there's anything more to parse. */
 ldr r0, =input_source
 ldr r0, [r0]      /* r0 is the input source pointer. */
-add r1, r0, #SRC_BUF
-ldr r1, [r1]      /* r1 is the parse buffer pointer. */
+add r1, r0, #SRC_POS
+ldr r1, [r1]      /* r1 is the parse buffer offset. */
+add r1, r1, r0
+add r1, r1, #SRC_START /* r1 is now a pointer to the start of the parse area. */
 add r2, r0, #SRC_TOP
 ldr r2, [r2]      /* r2 is the parse buffer top. */
 cmp r1, r2
@@ -2249,9 +2264,10 @@ cmp r8, r9
 _refill_keyboard_done:
 add r0, r7, #SRC_TOP
 str r8, [r0]        /* Store the r8 running pointer into the top field. */
-add r9, r7, #SRC_START /* r8 now holds the start pointer. */
-add r0, r7, #SRC_BUF
-str r9, [r0]          /* which we store into the buffer field. */
+
+mov r9, #0
+add r0, r7, #SRC_POS
+str r9, [r0]        /* And 0 into the offset. */
 
 mvn r0, #0 /* Load -1, a true flag, and return. */
 pop {pc}
@@ -2287,31 +2303,9 @@ b _refill_file_loop
 _refill_file_done:
 add r7, r8, #SRC_TOP
 str r6, [r7] /* Store the top pointer. */
-add r7, r8, #SRC_BUF
-add r6, r8, #SRC_START
-str r6, [r7] /* And the start pointer. */
-
-/* DEBUG: Prints the string to stderr. */
-/* First write the '> ' caret. */
-mov r7, #__NR_write
-mov r0, #stderr
-ldr r1, =debug_caret
-mov r2, #2
-swi #0
-
-/* Then the freshly-read string. */
-add r7, r8, #SRC_TOP
-ldr r6, [r7]
-mov r0, #10
-strb r0, [r6]   /* Store a newline. */
-add r6, r6, #1  /* Bump the top pointer (the temp one) to print the newline. */
-add r7, r8, #SRC_BUF
-ldr r1, [r7]     /* Buffer in r1 */
-sub r2, r6, r1   /* Length in r2 */
-mov r0, #stderr
-mov r7, #__NR_write
-swi #0
-
+add r7, r8, #SRC_POS
+mov r6, #0
+str r6, [r7] /* And 0 to the offset. */
 
 mvn r0, #0 /* Return true. */
 pop {pc}
@@ -2331,8 +2325,8 @@ EVALUATE:
 .word code_EVALUATE
 code_EVALUATE:
 pop {r0, r1}  /* r0 = length, r1 = address */
-/* Create a new input source above the current one, and aim it at the evaluated string. */
-add r2, r1, r0  /* r2 now holds the top pointer for the string. */
+/* Create a new input source above the current one, and copy in the evaluated string. */
+/* The copying is unfortunate but necessary, since it keeps the interface common for the input sources. */
 
 ldr r3, =input_source
 ldr r4, [r3]
@@ -2340,15 +2334,27 @@ add r4, r4, #INPUT_SOURCE_SIZE
 str r4, [r3]   /* Write the new input source's location into the variable. */
 
 add r5, r4, #SRC_TYPE
-mov r0, #1  /* Load the type for an EVALUATE string. */
-str r0, [r5] /* And write the type into the field. */
+mov r2, #1  /* Load the type for an EVALUATE string. */
+str r2, [r5] /* And write the type into the field. */
 
-add r5, r4, #SRC_BUF
-str r1, [r5] /* Write the beginning pointer into the buffer field. */
-add r5, r4, #SRC_TOP
-str r2, [r5] /* Write the top pointer into the top field. */
+add r5, r4, #SRC_START
+cmp r0, #0   /* Short-circuit and skip over the loop when the length is 0. */
+  beq _evaluate_done
+_evaluate_loop:
+ldrb r2, [r1], #1  /* Load the byte, post-index by 1. */
+strb r2, [r5], #1  /* Store the byte, post-index by 1. */
+subs r0, r0, #1
+  bne _evaluate_loop
 
-b code_INTERPRET /* XXX: Is this accurate? */
+/* When we get down here, r5 is the top pointer, and the copy is complete. */
+_evaluate_done:
+add r1, r4, #SRC_TOP
+str r5, [r1]          /* Store r5, the top pointer. */
+add r1, r4, #SRC_POS
+mov r5, #0
+str r5, [r1]
+
+b code_INTERPRET /* XXX: Is this correct? */
 
 
 
@@ -2434,10 +2440,11 @@ mov r4, #2  /* 2 is the type for file */
 str r4, [r3] /* store the type */
 
 add r4, r1, #SRC_START
-add r3, r1, #SRC_BUF
-str r4, [r3] /* Store the start address in the buffer field. */
 add r3, r1, #SRC_TOP
-str r4, [r3] /* And in the top field (therefore buffer is empty). */
+str r4, [r3] /* Store the start address in the top field (therefore buffer is empty). */
+mov r4, #0
+add r3, r1, #SRC_POS
+str r4, [r3] /* And store 0 into the parse offset field. */
 
 add r3, r1, #SRC_DATA
 str r0, [r3]   /* Finally, store the fileid into the data field. */
@@ -2537,10 +2544,10 @@ _key_buffer:
 /* On input buffers:
 - There are 16 input sources here. Each is 512 bytes long, and has the following form:
   - 4 bytes: input source type (0 = keyboard, 1 = EVALUATE string, 2 = file, 3 = block)
-  - 4 bytes: parse buffer position (points to the current parse position)
+  - 4 bytes: parse buffer offset (offset into the data area)
   - 4 bytes: parse buffer top (points to after the current parse field)
-  - 4 bytes: data value (keyboard: empty, EVALUATE: empty, file: fileid, block: blockid)
-  - 496 bytes: input buffer itself. Not used for blocks, but still present.
+  - 4 bytes: data value (keyboard: empty, EVALUATE: pointer to string, file: fileid, block: blockid)
+  - 496 bytes: input buffer itself. Not used for blocks or EVALUATE strings, but still present.
 - input_source_top points at the first entry (the keyboard)
 - input_source points at the current entry
 */
@@ -2552,14 +2559,13 @@ input_source:
 .word input_spec_space
 
 .equ SRC_TYPE, 0
-.equ SRC_BUF, 4
+.equ SRC_POS, 4
 .equ SRC_TOP, 8
 .equ SRC_DATA, 12
 .equ SRC_START, 16
 
 .equ PARSE_BUFFER_LEN, 496
 .equ INPUT_SOURCE_SIZE, 512
-
 
 interpret_is_lit:
 .word 0

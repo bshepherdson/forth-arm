@@ -42,16 +42,17 @@
 
 \ Compiles IMMEDIATE words.
 : [COMPILE] IMMEDIATE
-    PARSE-NAME  \ get the next word
-    FIND  \ find it in the dict
-    >CFA  \ get its codeword
+    WORD  \ get the next word - yes, word. FIND expects the counted string.
+    FIND  \ find it in the dict -- xt flag
+    DROP  \ XXX: Dangerous, we're assuming it's found successfully.
+    >BODY \  get its codeword
     ,     \ and compile it.
   ;
 
 
 : RECURSE IMMEDIATE
     LATEST @  \ This word
-    >CFA      \ get codeword
+    >BODY     \ get codeword
     ,         \ compile it
   ;
 
@@ -271,14 +272,14 @@
 
 
 : CONSTANT
-    WORD CREATE
+    CREATE
     DOCOL , \ codeword
     ' LIT , \ append LIT
     ,       \ input value
     ' EXIT , \ and append EXIT
   ;
 : VALUE ( n -- )
-    WORD CREATE
+    CREATE
     DOCOL ,
     ' LIT ,
     ,
@@ -297,7 +298,7 @@
 \ Finally VARIABLE itself.
 : VARIABLE
     1 CELLS ALLOT \ allocate 1 cell
-    WORD CREATE
+    CREATE
     DOCOL ,
     ' LIT ,
     , \ pointer from ALLOT
@@ -355,19 +356,6 @@
 ;
 
 
-\ FORGET is a horrible hack to
-\ deallocate memory.
-\ Sets HERE to the beginning of
-\ the given word and resets
-\ LATEST. FORGETing built-ins
-\ will cause suffering.
-: FORGET
-    WORD FIND \ dict address
-    DUP @ LATEST !
-    HERE !
-  ;
-
-
 : CASE IMMEDIATE 0 ;
 : OF IMMEDIATE
     ' OVER ,
@@ -383,14 +371,15 @@
     [COMPILE] THEN REPEAT
 ;
 
-: :NONAME
-    0 0 CREATE \ nameless entry
-    HERE @     \ current HERE
+\ Creates a dictionary entry with no name.
+: :NONAME ( -- xt)
+    0 0 (CREATE) \ nameless entry
+    LATEST @     \ LATEST holds the address of the link pointer, which is the xt.
     \ value is the address of
     \ the codeword, ie. the xt
     DOCOL ,
     ] \ compile the definition.
-  ;
+;
 
 \ compiles in a LIT
 : ['] IMMEDIATE ' LIT , ;
@@ -399,7 +388,7 @@
 \ Expects the user to specify the number of bytes, not cells.
 : ARRAY ( n -- )
   ALLOT >R
-  WORD CREATE \ define the word
+  CREATE \ define the word
   DOCOL ,    \ compile DOCOL
   ' CELLS ,     \ multiply the index into cells
   ' LIT ,    \ compile LIT

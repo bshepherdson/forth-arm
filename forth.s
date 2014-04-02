@@ -812,6 +812,7 @@ strb r2, [r1]
 add r0, r0, #1
 add r1, r1, #1
 push {r0,r1}
+NEXT
 
 name_CMOVE:
 .word name_CCOPY
@@ -1323,9 +1324,38 @@ push {r0}
 NEXT
 
 
+name_WORD:
+.word name_PARSE_NAME
+.byte 4
+.ascii "WORD"
+.align
+WORD:
+.word code_WORD
+code_WORD:
+mov r0, #32
+bl _parse_word /* r0 = length, r1 = address */
+
+ldr r2, =var_HERE
+ldr r2, [r2]      /* Using HERE area as temporary space. */
+push {r2}         /* That's always the return value from WORD, so push it now. */
+strb r0, [r2]     /* Store the length byte into the beginning of the space. */
+add r2, r2, #1
+
+_word_loop:
+cmp r0, #0
+  beq _word_done
+
+ldrb r3, [r1], #1  /* Post-incrementing will move r1 and r2. */
+strb r3, [r2], #1
+sub r0, r0, #1
+b _word_loop
+
+_word_done:
+NEXT
+
 
 name_KEY:
-.word name_PARSE_NAME
+.word name_WORD
 .byte 3
 .ascii "KEY"
 .align
@@ -1373,23 +1403,9 @@ swi $0
 pop {pc}
 
 
-name_WORD:
-.word name_EMIT
-.byte 4
-.ascii "WORD"
-.align
-WORD:
-.word code_WORD
-code_WORD:
-pop {r0} /* Pop the delimiter. */
-bl _parse_word /* And find it. Now r0 = length, r1 = address */
-push {r0, r1}
-NEXT
-
-
 
 name_NUMBER:
-.word name_WORD
+.word name_EMIT
 .byte 6
 .ascii "NUMBER"
 .align
@@ -1483,8 +1499,6 @@ _number_return:
 bx lr
 
 
-
-
 /* Dictionary lookup */
 
 name_FIND:
@@ -1495,9 +1509,32 @@ name_FIND:
 FIND:
 .word code_FIND
 code_FIND:
-pop {r2,r3} /* length on top of the stack -> r2, address beneath -> r3 */
+pop {r3} /* counted string */
+push {r3} /* Immediately save it. */
+/* Convert the counted string to a length and address. */
+ldrb r2, [r3]
+add r3, r3, #1
 bl _find
-push {r0} /* address of dictionary entry, or 0. */
+
+/* Returns either the address of the dictionary entry (that is, its xt), or 0. */
+/* If it was 0, then push 0 and return. */
+cmp r0, #0
+  beq find_nope
+
+/* It was found, so check its immediacy. */
+add r1, r0, #4
+ldrb r1, [r1]
+mov r2, #1
+ands r1, r1, #F_IMMED
+  subeq r2, r2, #2    /* They're "equal" if F_IMMED is not set. Therefore -1 if F_IMMED is clear, and 1 if set. */
+pop {r6}  /* Pop the junk c-addr copy. */
+push {r0}
+push {r2}
+NEXT
+
+find_nope:
+mov r0, #0
+push {r0} /* c-addr is already on the stack; this pushes a 0 on top to signal not-found. */
 NEXT
 
 
@@ -1582,16 +1619,16 @@ bl _refill
 NEXT
 
 
-name_TCFA:
+name_TBODY:
 .word name_BACKSLASH
-.byte 4
-.ascii ">CFA"
+.byte 5
+.ascii ">BODY"
 .align
-TCFA:
-.word code_TCFA
-code_TCFA:
+TBODY:
+.word code_TBODY
+code_TBODY:
 pop {r3} /* dictionary address */
-bl _tcfa
+bl _tbody
 push {r3}
 NEXT
 
@@ -1601,7 +1638,7 @@ Expects a dictionary block address in r3.
 Returns address of codeword in r3.
 Clobbers r0, r3
 */
-_tcfa:
+_tbody:
 mov r0, #0
 add r3, r3, #4 /* skip over link pointer, now points to length */
 ldrb r0, [r3] /* Retrieve the length+flags */
@@ -1614,65 +1651,49 @@ and r3, r3, r0 /* Mask off the last two bits, to align. */
 bx lr
 
 
-name_TDFA:
-.word name_TCFA
-.byte 4
-.ascii ">DFA"
-.align
-TDFA:
-.word code_TDFA
-code_TDFA:
-pop {r3}
-bl _tcfa
-add r3, r3, #4 /* Jump over to the code. */
-push {r3}
-NEXT
-
-
 
 /* Compilation and defining */
 
-name_CREATE:
-.word name_TDFA
-.byte 6
-.ascii "CREATE"
+name_CREATE_INT:
+.word name_TBODY
+.byte 8
+.ascii "(CREATE)"
 .align
-CREATE:
-.word code_CREATE
-code_CREATE:
-pop {r1} /* length from the top, address of the name underneath */
-pop {r2}
+CREATE_INT:
+.word code_CREATE_INT
+code_CREATE_INT:
+pop {r0, r1} /* Length in r0, address in r1. */
 
 /* Store the link pointer. */
 ldr r3, =var_HERE
 ldr r3, [r3]
-ldr r0, =var_LATEST
-ldr r0, [r0]
+ldr r4, =var_LATEST
+ldr r4, [r4]
 
-str r0, [r3] /* Write LATEST into the new link pointer at HERE */
+str r4, [r3] /* Write LATEST into the new link pointer at HERE */
 ldr r4, =var_LATEST
 str r3, [r4] /* And write the new HERE into LATEST */
 add r3, r3, #4 /* Jump over the link pointer. */
 
 /* Length byte and the word itself need storing. */
-strb r1, [r3] /* store the length byte */
+strb r0, [r3] /* store the length byte */
 add r3, r3, #1 /* Move to the start of the string. */
 
 _create_name_loop:
-ldrb r5, [r2] /* Load the next letter of the name into r5 */
-strb r5, [r3] /* And write it into the new word block */
-add r2, r2, #1
-add r3, r3, #1
+cmp r0, #0
+  beq _create_name_loop_done
+ldrb r5, [r1], #1 /* Load the next letter of the name into r5 */
+strb r5, [r3], #1 /* And write it into the new word block */
 
-sub r1, r1, #1
-cmp r1, #0
-  bgt _create_name_loop
+sub r0, r0, #1
+b _create_name_loop
 
 /*
 Move HERE to point to after the block
 New value of HERE is in r3, but not aligned.
 Align it:
 */
+_create_name_loop_done:
 add r3, r3, #3
 mvn r5, #3
 and r3, r3, r5
@@ -1681,6 +1702,21 @@ and r3, r3, r5
 ldr r1, =var_HERE
 str r3, [r1]
 NEXT
+
+
+name_CREATE:
+.word name_CREATE_INT
+.byte 6
+.ascii "CREATE"
+.align
+CREATE:
+.word code_CREATE
+code_CREATE:
+mov r0, #32
+bl _parse_word /* Length in r0, address in r1. */
+push {r0, r1}
+b code_CREATE_INT
+/* Intentionally no NEXT */
 
 
 name_COMMA:
@@ -1738,8 +1774,6 @@ name_COLON:
 .align
 COLON:
 .word DOCOL
-/* Get the name of the new word. */
-.word PARSE_NAME
 /* Create the header */
 .word CREATE
 /* Append the codeword, DOCOL */
@@ -1776,6 +1810,11 @@ SEMICOLON:
 .word EXIT
 
 
+/* Put the literals table here, so it should be in reach from everywhere. */
+/* This is necessary because the file is long enough to keep it out of */
+/* reach from some places when it's in the default location (end of the assembly). */
+.ltorg
+
 
 name_IMMEDIATE:
 .word name_SEMICOLON
@@ -1810,24 +1849,8 @@ strb r4, [r3]
 NEXT
 
 
-name_HIDE:
-.word name_HIDDEN
-.byte 4
-.ascii "HIDE"
-.align
-HIDE:
-.word DOCOL
-/* Get the word after HIDE */
-.word WORD
-/* Look it up in the dictionary */
-.word FIND
-/* Set the flag */
-.word HIDDEN
-.word EXIT
-
-
 name_TICK:
-.word name_HIDE
+.word name_HIDDEN
 .byte 1
 .ascii "'"
 .align
@@ -1841,7 +1864,7 @@ NEXT
 /*
 TODO - This definition only works in compiled code.
 According to the jonesforth commentary, TICK can be written
-with WORD, FIND and >CFA so that it'll run in immediate mode too.
+with WORD, FIND and >BODY so that it'll run in immediate mode too.
 */
 
 /* System call primitives. Expect parameters on the stack in reverse order (ie. a3 a2 a1 syscallnumber ). Pushes r0, the return value, even for void syscalls */
@@ -2071,9 +2094,9 @@ cmp r0, #0
 add r2, r0, #4 /* r2 is the address of the dictionary header's length byte */
 ldrb r9, [r2] /* Set aside the actual value of that word */
 
-/* _TCFA expects the address in r3 */
+/* _TBODY expects the address in r3 */
 mov r3, r0
-bl _tcfa
+bl _tbody
 mov r0, r3 /* Move the address of the codeword into r0 */
 
 /* Now r3 points at the codeword */
@@ -2411,10 +2434,45 @@ ldr r11, =_quit_inner
 NEXT
 
 
+name_IN:
+.word name_EVALUATE
+.byte 3
+.ascii ">IN"
+.align
+IN:
+.word code_IN
+code_IN:
+ldr r0, =input_source
+ldr r0, [r0]
+add r0, r0, #SRC_POS
+push {r0}
+NEXT
+
+
+name_SOURCE:
+.word name_IN
+.byte 6
+.ascii "SOURCE"
+.align
+SOURCE:
+.word code_SOURCE
+code_SOURCE:
+/* Returns the address of, and number of characters in, the input buffer. */
+ldr r0, =input_source
+ldr r0, [r0]
+add r2, r0, #SRC_START
+add r1, r0, #SRC_TOP
+ldr r1, [r1]   /* Actual top pointer */
+sub r1, r1, r2 /* Now the length */
+push {r2}
+push {r1}
+NEXT
+
+
 /* Odds and ends */
 
 name_CHAR:
-.word name_EVALUATE
+.word name_SOURCE
 .byte 4
 .ascii "CHAR"
 .align
@@ -2448,8 +2506,10 @@ name_EXECUTE:
 EXECUTE:
 .word code_EXECUTE
 code_EXECUTE:
-pop {r0} /* Get the execution token (a pointer) off the stack */
-ldr r2, [r0] /* Load the value stored there */
+pop {r3} /* Get the execution token (a pointer) off the stack */
+bl _tbody /* Convert from the xt (pointer to the dictionary block) to the codeword. */
+ldr r2, [r3] /* Load the value stored there */
+mov r0, r3   /* DOCOL expects the codeword address in r0. */
 bx r2 /* And jump there */
 NEXT
 
@@ -2559,6 +2619,7 @@ NEXT
 
 cold_start:
 .word QUIT
+
 
 
 .data

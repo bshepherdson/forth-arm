@@ -386,8 +386,8 @@ swi #0
 
 name_SHL:
 .word name_DIVMOD
-.byte 2
-.ascii "<<"
+.byte 6
+.ascii "LSHIFT"
 .align
 SHL:
 .word code_SHL
@@ -400,8 +400,8 @@ NEXT
 /* LOGICAL shift right */
 name_SHR:
 .word name_SHL
-.byte 2
-.ascii ">>"
+.byte 6
+.ascii "RSHIFT"
 .align
 SHR:
 .word code_SHR
@@ -834,9 +834,10 @@ subs r4, r4, #1
   bgt _cmove_loop
 NEXT
 
+
 /* Some halfword read/write functions */
 name_FETCHHALFWORD:
-.word name_CCOPY
+.word name_CMOVE
 .byte 2
 .ascii "H@"
 .align

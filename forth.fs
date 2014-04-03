@@ -49,6 +49,13 @@
     ,     \ and compile it.
   ;
 
+\ POSTPONE is a smart COMPILE/[COMPILE]. It is immediate.
+\ On non-immediate words, it is the same as , .
+\ On immediate words, it is the same as [COMPILE].
+: POSTPONE IMMEDIATE
+    WORD FIND DROP \ Now we have the xt.
+    >BODY ,
+;
 
 : RECURSE IMMEDIATE
     LATEST @  \ This word
@@ -404,8 +411,8 @@
     ] \ compile the definition.
 ;
 
-\ compiles in a LIT
-: ['] IMMEDIATE ' LIT , ;
+\ Parse the next word, find its xt, and compile a literal for it.
+: ['] IMMEDIATE WORD FIND DROP [COMPILE] LITERAL ;
 
 \ Create a small region of loop metadata.
 HERE @ 8 CELLS ALLOT
@@ -580,6 +587,9 @@ VARIABLE (LOOP-SP)
     DROP
 ;
 
+\ MOVE works in address units, and CMOVE in characters. But that's the same size on ARM, so
+\ MOVE is just an alias.
+: MOVE CMOVE ;
 
 
 : WELCOME

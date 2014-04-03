@@ -407,6 +407,10 @@
 \ compiles in a LIT
 : ['] IMMEDIATE ' LIT , ;
 
+\ Create a small region of loop metadata.
+HERE @ 8 CELLS ALLOT
+VARIABLE (LOOP-SP)
+(LOOP-SP) ! \ (LOOP-SP) now holds the address of the lowest entry in the loop stack.
 
 : DO IMMEDIATE \ lim start --
   HERE @
@@ -415,6 +419,8 @@
   ' > ,
   ' 0BRANCH ,
   HERE @ \ location of offset
+  DUP (LOOP-SP) @ ! \ Store that branch offset into (LOOP-SP).
+  1 CELLS (LOOP-SP) +! \ And bump the pointer.
   0 , \ dummy exit offset
 ;
 
@@ -428,6 +434,7 @@
   - , \ top ( br )
   HERE @ OVER -
   SWAP ! \ end
+  1 CELLS NEGATE (LOOP-SP) +! \ Drop this entry from the (LOOP-SP) stack.
   ' R> , ' R> , ' 2DROP ,
 ;
 
@@ -448,6 +455,19 @@
 \ Drops the values from RS.
 : UNLOOP \ ( -- )
   R> R> R> 2DROP >R ;
+
+\ LEAVE jumps out of a DO LOOP.
+\ We implement it by capturing the offset of the top branch above, and jumping to it.
+\ That instruction is a 0-branch, so we compile code that will push a 0 and jump to it.
+: LEAVE IMMEDIATE \ Runtime: -- , Immediate: (top jump -- top jump)
+    ' DEBUG ,
+    ' LIT , 0 , ' BRANCH , \ Add a 0 and then the branch.
+    \ top jump
+    (LOOP-SP) @ 4 - \ top jump loop-entry
+    @ 4 - \ top jump branch-address
+    HERE @ - \ top jump offset
+    , \ Compute and compile the (negative) offset. ( top jump )
+;
 
 
 : S" IMMEDIATE ( -- addr len )
@@ -522,6 +542,43 @@
     2DROP R> \ n1
 ;
 
+\ Compares two strings for (case sensitive) equality.
+: STR= ( c-addr2 u2 c-addr1 u1 -- ? )
+    ROT  \ a2 a1 u1 u2
+    OVER <> IF DROP 2DROP FALSE EXIT THEN \ Bail if the lengths are different.
+    \ Need to actually compare the strings.
+    0 DO \ a2 a1
+        2DUP I + C@ \ a2 a1 a2 c1
+        SWAP I + C@ \ a2 a1 c1 c2
+        <> IF 2DROP FALSE UNLOOP EXIT THEN
+    LOOP
+    2DROP TRUE
+;
+
+
+: ENVIRONMENT? ( c-addr u -- false | i.x true )
+    2DUP S" /COUNTED-STRING" STR= IF 2DROP 2000000000 TRUE EXIT THEN
+    2DUP S" /HOLD" STR= IF 2DROP FALSE EXIT THEN
+    2DUP S" /PAD" STR= IF 2DROP 10000 TRUE EXIT THEN
+    2DUP S" ADDRESS-UNIT-BITS" STR= IF 2DROP 32 TRUE EXIT THEN
+    2DUP S" FLOORED" STR= IF 2DROP FALSE TRUE EXIT THEN \ TODO Check which division I do.
+    2DUP S" MAX-CHAR" STR= IF 2DROP 127 TRUE EXIT THEN
+    2DUP S" MAX-D" STR= IF 2DROP -1 2147483647 TRUE EXIT THEN
+    2DUP S" MAX-N" STR= IF 2DROP 2147483647 TRUE EXIT THEN
+    2DUP S" MAX-U" STR= IF 2DROP -1 TRUE EXIT THEN
+    2DUP S" MAX-UD" STR= IF 2DROP -1 -1 TRUE EXIT THEN
+    2DUP S" RETURN-STACK-CELLS" STR= IF 2DROP 1024 TRUE EXIT THEN
+    2DUP S" STACK-CELLS" STR= IF 2DROP 256 1024 * TRUE EXIT THEN
+    2DROP FALSE
+;
+
+: FILL ( c-addr u char -- )
+    -ROT \ char c-addr u
+    OVER + SWAP DO \ char
+        DUP I C!
+    LOOP
+    DROP
+;
 
 
 

@@ -13,9 +13,6 @@ Forth ARM implements the `CORE`, `CORE EXT`, `BLOCK`, `BLOCK EXT`, `FILE`, and `
 - Number conversion words: `<#`, `#>`, `#`, `#S`, `HOLD`, `SIGN`
 - Some double-cell math words: `*/`, `*/MOD`, `M*`, `2*`, `2!`, `2@`, `2/`, `UM*`, `UM/MOD`
 - Parsing-related words: `>NUMBER`
-- `DOES>`
-- `ENVIRONMENT?`
-- `FILL`
 - `FM/MOD` and `SM/REM`
 - `LSHIFT` and `RSHIFT`.
 - `MOVE`

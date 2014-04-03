@@ -271,40 +271,62 @@
 
 
 
-: CONSTANT
-    CREATE
-    DOCOL , \ codeword
-    ' LIT , \ append LIT
-    ,       \ input value
-    ' EXIT , \ and append EXIT
-  ;
-: VALUE ( n -- )
-    CREATE
-    DOCOL ,
-    ' LIT ,
-    ,
-    ' EXIT ,
-  ;
+\ This is tricky. The LHS before DOES> should have called CREATE. That new definition willl
+\ look like: DOCOL, LIT, body pointer, EXIT, EXIT. (Yes, two EXITs.)
+\ DOES> replaces the first EXIT with the address of the DOCOL it's about to insert.
 
-\ Allocates n bytes of memory
-: ALLOT ( n -- addr )
-    HERE @ SWAP \ here n
+\ There are three distinct phases here:
+\ 1. A defining word (eg. ARRAY) whose definition contains DOES>
+\ 2. That defining word is used to create another word.
+\ 3. That new word is executed.
+\ DOES> runs during compilation of 1., and it needs to set up the second two phases.
+: DOES> IMMEDIATE
+    \ First compute the address of where we're going to put the DOCOL for the code after DOES>.
+    \ Code needs to be compiled into phase 2 that will overwrite the first EXIT in phase 3.
+
+    HERE @ 44 +
+
+    ' LATEST ,
+    ' @ ,
+    ' >BODY ,
+    ' LIT ,
+    12 ,
+    ' + ,
+    ' LIT ,
+    , \ Write the address we computed above.
+    ' SWAP ,
+    ' ! ,
+    ' EXIT ,
+
+    \ Now this should be where the HERE pointer above is aimed. Compile DOCOL now.
+    \ We're now one-layer compiling instead of ridiculous double-compiling.
+    DOCOL ,
+    \ And now we return to compiling mode for the DOES> RHS.
+;
+
+
+\ Allocates n bytes of memory. If n is negative, frees the memory instead.
+: ALLOT ( n -- )
     HERE +!     \ add n to HERE
   ;
 
-\ Converts a number of cells into a number of bytes
+\ Cell and character conversion functions.
 : CELLS ( n -- n ) 4 * ;
+: CELL+ ( a-addr1 -- a-addr2 ) 4 + ;
+: CHAR+ ( c-addr1 -- c-addr2 ) 1+ ;
+: CHARS ( n1 -- n2 ) ;
 
-\ Finally VARIABLE itself.
-: VARIABLE
-    1 CELLS ALLOT \ allocate 1 cell
-    CREATE
-    DOCOL ,
-    ' LIT ,
-    , \ pointer from ALLOT
-    ' EXIT ,
-  ;
+\ The three core defining words, which make use of DOES>.
+: CONSTANT  ( x -- ) ( -- x ) CREATE , DOES> @ ;
 
+: VARIABLE ( -- ) ( -- a-addr )
+    CREATE 0 , ; \ No need for a DOES> here, returning the address is already the right thing.
+
+: ARRAY ( n -- ) ( index -- a-addr )
+    CREATE CELLS ALLOT DOES> SWAP CELLS + ;
+
+\ Turns an address for a counted string into an address/length pair.
+: COUNT ( c-addr1 -- c-addr2 u ) DUP C@ SWAP 1+ SWAP ;
 
 : DUMP ( addr len -- )
     BASE @ -ROT \ save the current BASE at the bottom of the stack
@@ -375,29 +397,15 @@
 : :NONAME ( -- xt)
     0 0 (CREATE) \ nameless entry
     LATEST @     \ LATEST holds the address of the link pointer, which is the xt.
-    \ value is the address of
-    \ the codeword, ie. the xt
+    DUP >R \ Set aside the xt.
+    >BODY HERE ! \ And adjust HERE to point at the top of the body again.
     DOCOL ,
+    R> \ Restore the xt to TOS.
     ] \ compile the definition.
 ;
 
 \ compiles in a LIT
 : ['] IMMEDIATE ' LIT , ;
-
-
-\ Expects the user to specify the number of bytes, not cells.
-: ARRAY ( n -- )
-  ALLOT >R
-  CREATE \ define the word
-  DOCOL ,    \ compile DOCOL
-  ' CELLS ,     \ multiply the index into cells
-  ' LIT ,    \ compile LIT
-  R> ,       \ compile address
-  ' + ,      \ add index
-  ' EXIT ,   \ compile EXIT
-;
-
-
 
 
 : DO IMMEDIATE \ lim start --
@@ -472,6 +480,50 @@
         TELL
     THEN
 ;
+
+\ Empties both stacks and returns to a pristine state.
+: ABORT ( ... -- ) S0 @ DSP!   QUIT ;
+
+\ Parses a string at compile-time. At run-time prints it and aborts if the test value is nonzero.
+\ This is one of the most meta things I've ever written.
+: ABORT" IMMEDIATE ( ... "ccc<quote>" -- )
+    [COMPILE] IF
+        [COMPILE] S"
+        ' TELL ,
+        ' CR ,
+        ' ABORT ,
+    [COMPILE] THEN
+;
+
+
+: ABS ( n -- u ) DUP 0< IF NEGATE THEN ;
+
+\ Reads up to n1 characters into c-addr. Echoes them as they come in.
+\ Returns the number of characters actually read. Stops on line termination.
+\ XXX: This is slightly busted: it won't return until you press Enter, even if you
+\ overrun the buffer.
+: ACCEPT ( c-addr +n1 - +n2 )
+    DUP >R \ Set aside the original length for later.
+    BEGIN DUP 0 > WHILE \ addr remaining
+        KEY     \ addr rem key
+        DUP 10 = IF
+            \ Exit early.
+            DROP NIP \ rem
+            R> SWAP - \ diff
+            EXIT
+        THEN
+        ROT \ rem key addr
+        2DUP C! \ rem key addr
+        1+ ROT \ key addr' rem
+        1- ROT DROP \ addr' rem'
+        DUP .
+    REPEAT
+    \ If we get here, we ran out of space, so return  the original length.
+    2DROP R> \ n1
+;
+
+
+
 
 : WELCOME
     ." FORTH ARM" CR

@@ -1698,7 +1698,22 @@ add r3, r3, #3
 mvn r5, #3
 and r3, r3, r5
 
-/* And then store it */
+/* Now r3 is the correct HERE value where the body begins. */
+/* We create a body thus: DOCOL, LIT, HERE+20, EXIT, EXIT. (See below for why two EXITs.) */
+/* That means the definition's default behavior is to return its own data space address. */
+ldr r5, =DOCOL
+str r5, [r3], #4
+ldr r5, =LIT
+str r5, [r3], #4
+add r5, r3, #12   /* This is the pointer after where EXIT is about to go. */
+str r5, [r3], #4
+ldr r5, =EXIT
+str r5, [r3], #4
+str r5, [r3], #4 /* We write EXIT twice, so that it can be overwritten by DOES>.  */
+/* This only wastes space for CREATEd words without a DOES>. That doesn't apply to words */
+/* defined using : and :NONAME, since those overwrite the entire body. */
+
+/* And then store this new HERE pointer. */
 ldr r1, =var_HERE
 str r3, [r1]
 NEXT
@@ -1717,6 +1732,7 @@ bl _parse_word /* Length in r0, address in r1. */
 push {r0, r1}
 b code_CREATE_INT
 /* Intentionally no NEXT */
+
 
 
 name_COMMA:
@@ -1776,6 +1792,13 @@ COLON:
 .word DOCOL
 /* Create the header */
 .word CREATE
+/* Adjust the HERE value back to the body of the latest definition. */
+/* This will allow it to overwrite the unneeded default CREATE implementation. */
+.word LATEST
+.word FETCH
+.word TBODY
+.word HERE
+.word STORE
 /* Append the codeword, DOCOL */
 .word LIT
 .word DOCOL

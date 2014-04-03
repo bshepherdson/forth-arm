@@ -1,2 +1,4 @@
-:NONAME 65 EMIT ;
-EXECUTE 66 EMIT CR
+10 ARRAY
+X @ .
+25 X !
+35 X @ . . CR

@@ -39,6 +39,7 @@
 : '(' [ CHAR ( ] LITERAL ;
 : ')' [ CHAR ) ] LITERAL ;
 
+: [CHAR] IMMEDIATE PARSE-NAME DROP C@ ' LIT , , ;
 
 \ Compiles IMMEDIATE words.
 : [COMPILE] IMMEDIATE
@@ -500,13 +501,36 @@ VARIABLE (LOOP-SP)
 : ." IMMEDIATE ( -- )
     STATE @ IF \ compiling?
         [COMPILE] S"
-        ' TELL ,
+        ' TYPE ,
     ELSE
         \ Just read and print
         34 PARSE \ addr len
-        TELL
+        TYPE
     THEN
 ;
+
+\ Lame duplication. Oh well.
+: .( IMMEDIATE ( -- addr len )
+    STATE @ IF \ compiling?
+        ' LITSTRING ,
+        41 PARSE \ addr len
+        DUP ,    \ addr len (and the length compiled in)
+        HERE @ \ src len dst
+        SWAP   \ src dst len
+        DUP HERE +! \ src dst len - move HERE to make room
+
+        0 DO \ src dst
+            OVER I + C@ \ src dst val
+            OVER I + C! \ src dst
+        LOOP
+        2DROP
+        ALIGN
+        ' TYPE ,
+    ELSE
+        41 PARSE TYPE
+    THEN
+;
+
 
 \ Empties both stacks and returns to a pristine state.
 : ABORT ( ... -- ) S0 @ DSP!   QUIT ;
@@ -516,7 +540,7 @@ VARIABLE (LOOP-SP)
 : ABORT" IMMEDIATE ( ... "ccc<quote>" -- )
     [COMPILE] IF
         [COMPILE] S"
-        ' TELL ,
+        ' TYPE ,
         ' CR ,
         ' ABORT ,
     [COMPILE] THEN
@@ -590,6 +614,57 @@ VARIABLE (LOOP-SP)
 \ MOVE works in address units, and CMOVE in characters. But that's the same size on ARM, so
 \ MOVE is just an alias.
 : MOVE CMOVE ;
+
+\ Converts a single-cell value to a double-cell value with same value.
+: S>D DUP 0> IF 0 ELSE -1 THEN ;
+
+
+: 2>R SWAP >R  >R ;
+: 2R> R> R> SWAP ;
+: 2R@ R> R> 2DUP >R >R SWAP ;
+
+
+\ A deferred word is basically a variable that executes when called.
+\ Its cell holds the xt to be executed, so it must be read, then executed.
+: DEFER CREATE 0 , DOES> @ EXECUTE ;
+: DEFER@ ( xt1 -- xt2 ) >DATA @ ;
+: DEFER! ( xt2 xt1 -- ) >DATA ! ;
+
+\ Gets the name of the next word, looks it up, and returns its target xt.
+\ TODO: This is busted, it needs to be smart about the current state. it should return the value in immediate mode, and compile it in compilation mode.
+: ACTION-OF IMMEDIATE ( "<spaces>name" -- xt )
+    WORD FIND DROP >DATA @ \ xt
+    STATE @ IF ' LIT , , THEN \ compile it if we're compiling.
+;
+
+: IS IMMEDIATE ( xt "<spaces>name" -- )
+    WORD FIND DROP >DATA
+    STATE @ IF ' LIT , , ' ! , \ If we're compiling, compile the literal address and a store.
+    ELSE ! THEN \ And if interpreting, store it now.
+;
+
+
+\ Creates a region of the given size; does not need to do anything on name execution.
+: BUFFER: CREATE ALLOT ALIGN ;
+
+
+: C" IMMEDIATE ( -- addr )
+    STATE @ IF \ compiling?
+        ' LITCSTRING ,
+        34 PARSE \ addr len
+        HERE @ 1+  \ src len dst
+        OVER C,    \ src len dst - now with the length compiled in.
+        SWAP       \ src dst len
+        DUP HERE +! \ src dst len - move HERE to make room
+
+        0 DO \ src dst
+            OVER I + C@ \ src dst val
+            OVER I + C! \ src dst
+        LOOP
+        2DROP
+        ALIGN
+    THEN
+;
 
 
 : WELCOME

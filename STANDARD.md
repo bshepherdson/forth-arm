@@ -14,19 +14,10 @@ Forth ARM implements the `CORE`, `CORE EXT`, `BLOCK`, `BLOCK EXT`, `FILE`, and `
 - Some double-cell math words: `*/`, `*/MOD`, `M*`, `2*`, `2!`, `2@`, `2/`, `UM*`, `UM/MOD`
 - Parsing-related words: `>NUMBER`
 - `FM/MOD` and `SM/REM`
-- `S>D` and `D>S`
-- `SOURCE`
-- `TYPE` is my `TELL`, rename that.
-- `[CHAR]`
 
 ### Missing from `CORE EXT`
 
-- `.(`
-- `2>R`, `2R>`, `2R@`
-- `:NONAME`
-- `?DO`
-- `ACTION-OF`, `DEFER`, `DEFER@`, `DEFER!`, `IS`.
-- `BUFFER:` (replaces `ARRAY`?)
+- `?DO` - Leaving this for now, it's a minor point.
 - `C"`
 - `COMPILE,`
 - `ERASE`

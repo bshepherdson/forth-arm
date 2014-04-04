@@ -1651,12 +1651,25 @@ and r3, r3, r0 /* Mask off the last two bits, to align. */
 /* r3 is now the codeword */
 bx lr
 
+name_TDATA:
+.word name_TBODY
+.byte 5
+.ascii ">DATA"
+.align
+TDATA:
+.word code_TDATA
+code_TDATA:
+pop {r3}   /* This is an xt. That is, it points at the link pointer of a word. */
+bl _tbody /* Now its the address of the codeword. */
+add r3, r3, #20 /* CREATEd words look like: DOCOL, LIT, ADDR, EXIT, EXIT, data area... */
+push {r3}       /* So adding 20 should move the pointer to the data area. */
+NEXT
 
 
 /* Compilation and defining */
 
 name_CREATE_INT:
-.word name_TBODY
+.word name_TDATA
 .byte 8
 .ascii "(CREATE)"
 .align
@@ -2015,38 +2028,56 @@ mvn r0, #3
 and r11, r11, r0
 NEXT
 
-
-
-name_TELL:
+name_LITCSTRING:
 .word name_LITSTRING
-.byte 4
-.ascii "TELL"
+.byte 10
+.ascii "LITCSTRING"
 .align
-TELL:
-.word code_TELL
-code_TELL:
+LITCSTRING:
+.word code_LITCSTRING
+code_LITCSTRING:
+mov r0, r11
+ldrb r1, [r0] /* Get the length of the string from the next byte. */
+add r11, r11, #1
+add r11, r11, r1 /* Get past the string. */
+push {r0}   /* Push the length of the string. */
+/* and align */
+add r11, r11, #3
+mvn r2, #3
+and r11, r11, r2
+NEXT
+
+
+name_TYPE:
+.word name_LITCSTRING
+.byte 4
+.ascii "TYPE"
+.align
+TYPE:
+.word code_TYPE
+code_TYPE:
 pop {r8,r9} /* Length = r8, address = r9 */
 
 cmp r8, #0
-  beq _tell_done
+  beq _type_done
 
-bl _tell
-_tell_done:
+bl _type
+_type_done:
 NEXT
 
-_tell:
+_type:
 push {lr}
-_tell_inner:
+_type_inner:
 ldrb r0, [r9] /* Get the next character */
 bl _emit /* Clobbers r0-r2, r7 */
 add r9, r9, #1
 subs r8, r8, #1
-  bgt _tell_inner
+  bgt _type_inner
 pop {pc}
 
 
 name_QUIT:
-.word name_TELL
+.word name_TYPE
 .byte 4
 .ascii "QUIT"
 .align
@@ -2199,10 +2230,10 @@ push {r8, r9}
 ldr r9, =errmsg
 ldr r8, =errmsglen
 ldr r8, [r8]
-bl _tell
+bl _type
 
 pop {r8, r9}
-bl _tell
+bl _type
 
 mov r0, #0x0a /*  newline */
 bl _emit
@@ -2214,7 +2245,7 @@ add r8, r9, #SRC_TOP
 ldr r8, [r8]
 add r9, r9, #SRC_START
 sub r8, r8, r9  /* Length goes in r8, address in r9 */
-bl _tell
+bl _type
 
 mov r0, #10
 bl _emit
@@ -2596,7 +2627,7 @@ _load_files_error:
 ldr r9, =_load_files_error_message
 ldr r8, =_load_files_error_message_len
 ldr r8, [r8]
-bl _tell
+bl _type
 mov r0, #0x0a /*  newline */
 bl _emit
 

@@ -19,14 +19,6 @@ Forth ARM implements the `CORE`, `CORE EXT`, `BLOCK`, `BLOCK EXT`, `FILE`, and `
 
 - `?DO` - Leaving this for now, it's a minor point.
 - `HOLDS` (numeric output)
-- `MARKER`
-- `PAD`
-- `PARSE`
-- `PARSE-NAME`
 - `SAVE-INPUT` and `RESTORE-INPUT`
 - `S\"`
-- `SOURCE-ID`
-- `UNUSED`
-- `VALUE` and `TO`.
 
-Also need to check if `[COMPILE]` in my code and the standard match, and how they relate to `POSTPONE`.

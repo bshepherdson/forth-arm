@@ -941,10 +941,26 @@ ldr r0, =var_HERE
 push {r0}
 NEXT
 
+name_UNUSED:
+.word name_HERE
+.byte 6
+.ascii "UNUSED"
+.align
+UNUSED:
+.word code_UNUSED
+code_UNUSED:
+ldr r0, =var_HERE_TOP
+ldr r0, [r0]
+ldr r1, =var_HERE
+ldr r1, [r1]
+
+sub r0, r0, r1
+push {r0}
+NEXT
 
 
 name_S0:
-.word name_HERE
+.word name_UNUSED
 .byte 2
 .ascii "S0"
 .align
@@ -2076,8 +2092,38 @@ subs r8, r8, #1
 pop {pc}
 
 
-name_QUIT:
+name_SOURCE_ID:
 .word name_TYPE
+.byte 9
+.ascii "SOURCE-ID"
+.align
+SOURCE_ID:
+.word code_SOURCE_ID
+code_SOURCE_ID:
+ldr r0, =input_source
+ldr r0, [r0]  /* Returns -1 for EVALUATE, 0 for keyboard, or the fileid. */
+add r1, r0, #SRC_TYPE
+ldr r1, [r1]  /* r1 is the type */
+
+cmp r1, #1
+  bgt _source_id_file
+
+/* Otherwise negate and return that. */
+rsb r1, r1, #0 /* subtract from 0 --> negate */
+push {r1}  /* Now 0 is still 0, but 1 turned into -1 for evaluate. */
+b _source_id_done
+
+_source_id_file:
+add r2, r0, #SRC_DATA
+ldr r2, [r2]
+push {r2}
+
+_source_id_done:
+NEXT
+
+
+name_QUIT:
+.word name_SOURCE_ID
 .byte 4
 .ascii "QUIT"
 .align
@@ -2650,10 +2696,14 @@ str r1, [r3]
 /* Call malloc to request space for HERE. Currently 1M */
 mov r0, #1
 lsl r0, r0, #20
+mov r7, r0
 bl malloc
 /* r0 now contains the pointer to the memory */
 ldr r1, =var_HERE
 str r0, [r1]
+ldr r1, =var_HERE_TOP
+add r0, r0, r7 /* Add the pointer and length to get a top pointer. */
+str r0, [r1]   /* And store that in HERE_TOP. */
 
 /* Set up the stacks */
 ldr r0, =return_stack_top
@@ -2750,8 +2800,9 @@ argc:
 argv:
 .word 0
 
-/* var_HERE must be the last entry in the data segment */
 var_HERE:
+.word 0
+var_HERE_TOP:
 .word 0
 
 .end

@@ -685,6 +685,21 @@ VARIABLE (LOOP-SP)
     HERE ! \ Also set HERE equal to my link pointer.
 ;
 
+512 BUFFER: PAD
+
+\ A value returns its payload.
+: VALUE ( x -- ) CREATE , DOES> @ ;
+: TO IMMEDIATE
+    WORD FIND DROP >DATA \ data pointer on the stack.
+    STATE @ IF \ compiling
+        ' LIT , \ compile a literal for the data area.
+        ,
+        ' ! ,   \ and compile a store.
+    ELSE
+        !
+    THEN
+;
+
 : WELCOME
     ." FORTH ARM" CR
     ." by Braden Shepherdson" CR

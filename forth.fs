@@ -666,6 +666,24 @@ VARIABLE (LOOP-SP)
     THEN
 ;
 
+\ Convert the xt into a codeword pointer, then compile it.
+: COMPILE, ( xt -- ) >BODY , ;
+
+: ERASE ( addr u -- ) DUP 0> IF OVER + SWAP DO 0 I C! LOOP ;
+
+
+\ Creates a new word with the given name, which when executed deletes itself and everything
+\ after it.
+\ The hacky bit is that it has to work backwards from its data pointer to its link pointer.
+: MARKER ( "<spaces>name" -- )
+    CREATE
+    LATEST @      \ The link pointer of the new word. Same as its xt.
+    DUP >BODY 8 + \ link body' - points at the literal value, which is current the data field.
+    !             \ -- now this definition pushes its link pointer instead of its data pointer.
+    DOES>
+    DUP @ LATEST ! \ Read the link pointer of the marker, and set LATEST to that value.
+    HERE ! \ Also set HERE equal to my link pointer.
+;
 
 : WELCOME
     ." FORTH ARM" CR

@@ -18,9 +18,6 @@ Forth ARM implements the `CORE`, `CORE EXT`, `BLOCK`, `BLOCK EXT`, `FILE`, and `
 ### Missing from `CORE EXT`
 
 - `?DO` - Leaving this for now, it's a minor point.
-- `C"`
-- `COMPILE,`
-- `ERASE`
 - `HOLDS` (numeric output)
 - `MARKER`
 - `PAD`

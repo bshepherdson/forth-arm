@@ -700,6 +700,130 @@ VARIABLE (LOOP-SP)
     THEN
 ;
 
+
+
+\ FILE ACCESS WORDS
+\ There's no difference between text and binary modes on Linux, apparently?
+: BIN ;
+
+: CLOSE-FILE ( fileid -- ior )
+    6 SYSCALL1 ; \ Call close(2) with the fileid. Returns 0 on success, -1 otherwise.
+
+\ A helper method that copies a two-cell string to a C string. Uses HERE.
+: C-STR ( c-addr u -- addr )
+    DUP >R \ Stash the length for later.
+    HERE @ SWAP \ src dst len
+    MOVE
+    0   HERE @ R> +   C! \ Write the 0 terminator into the C string.
+    HERE @ \ And return the address of the C-string.
+;
+
+: CREATE-FILE ( c-addr u access -- fileid ior )
+    >R C-STR \ c-addr
+    R> 64 OR 512 OR \ Mix in O_CREATE and O_TRUNC. ( c-addr access )
+    SWAP \ access c-addr
+    \ Create the mode: 0644 by default. = 110 100 100 = 0x1a4 = 420
+    420 -ROT \ mode access c-addr
+    5 SYSCALL3
+    DUP 0< IF 0 SWAP ( fileid ior )
+    ELSE 0 ( fileid ior ) THEN
+;
+
+: DELETE-FILE ( c-addr u -- ior )
+    C-STR 10 SYSCALL1 ; \ unlink(2) returns 0 on success, -1 on failure.
+
+\ Calls lseek(2) with whence = CUR, offset 0. That returns the current offset.
+\ NB: The returned size is double-cell.
+: FILE-POSITION ( fileid -- ud ior )
+    >R
+    1  \ SEEK_CUR
+    0  \ offset of 0
+    R> \ fileid
+    19 \ lseek(2)
+    SYSCALL3
+    DUP 0< IF DROP 0 0 -1 ( ud ior )
+    ELSE 0 0 ( ud ior ) THEN
+;
+
+\ To do an fstat(2) we need a stat buffer. I'll use HERE@ for that.
+: FILE-SIZE ( fileid -- ud ior )
+    HERE @ SWAP \ buf fileid
+    28 SYSCALL2 \ fstat(2)  ( ior )
+    \ By experimentation, it's the 12th word in that has the length.
+    HERE @ 11 CELLS + @ 0 \ ( ior size_lo size_hi )
+    ROT \ size_d ior
+;
+
+\ TODO: Implement INCLUDE-FILE, INCLUDED, REQUIRE
+
+: OPEN-FILE ( c-addr u access -- fileid ior )
+    >R C-STR R> SWAP \ access c-str
+    5 SYSCALL2 \ ret
+    DUP 0< IF DROP 0 -1
+    ELSE 0 ( fileid ior ) THEN
+;
+
+: R/O ( -- access ) 0 ;
+: R/W ( -- access ) 2 ;
+: W/O ( -- access ) 1 ;
+
+
+: READ-FILE ( c-addr u1 fileid -- u2 ior )
+    >R SWAP R> \ u1 c-addr fileid
+    3 SYSCALL3 \ len
+    DUP 0< IF -1 ( u2 ior )
+    ELSE 0 ( u2 ior ) THEN
+;
+
+\ TODO: Implement READ-LINE.
+
+: REPOSITION-FILE ( ud fileid -- ior )
+    NIP \ u fileid
+    0 -ROT     \ 0 u fileid \ -- bury the whence value SEEK_SET.
+    19 SYSCALL3 \ ret
+    -1 = IF -1 ELSE 0 THEN \ Return 0 on success, not the file position.
+;
+
+: RESIZE-FILE ( ud fileid -- ior )
+    NIP \ u fileid
+    93 SYSCALL2 \ ftruncate(2)
+    \ Returns 0 on success, -1 on error.
+;
+
+: WRITE-FILE ( c-addr u fileid -- ior )
+    >R SWAP R> \ u c-addr fileid
+    4 SYSCALL3 \ write(2)
+    -1 = IF -1 ELSE 0 THEN \ Return 0 on success, -1 on failure.
+;
+
+
+\ .set __NR_exit, 1
+\ .set __NR_open, 5
+\ .set __NR_close, 6
+\ .set __NR_read, 3
+\ .set __NR_write, 4
+\ .set __NR_ftruncate 93
+\ .set __NR_unlink, 10
+\ .set __NR_lseek, 19
+\ .set __NR_fstat 28
+
+\ .set stdin, 0
+\ .set stdout, 1
+\ .set stderr, 2
+
+\ .set O_RDONLY, 0
+\ .set O_WRONLY, 1
+\ .set O_RDWR, 2
+\ .set O_CREAT, 64
+\ .set O_TRUNC, 512
+
+\ SEEK_SET = 0
+\ SEEK_CUR = 1
+\ SEEK_END = 2
+
+
+
+
 : WELCOME
     ." FORTH ARM" CR
     ." by Braden Shepherdson" CR

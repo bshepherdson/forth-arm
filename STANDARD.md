@@ -22,3 +22,10 @@ Forth ARM implements the `CORE`, `CORE EXT`, `BLOCK`, `BLOCK EXT`, `FILE`, and `
 - `SAVE-INPUT` and `RESTORE-INPUT`
 - `S\"`
 
+
+## Deviations
+
+### `FILE` and `FILE-EXT`
+
+- `(` is not multi-line when working on files.
+- Missing `READ-LINE`, `INCLUDED`, `INCLUDE-FILE` and all of `FILE-EXT`

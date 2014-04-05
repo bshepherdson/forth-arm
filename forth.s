@@ -1164,7 +1164,7 @@ NEXT
 .set __NR_close, 6
 .set __NR_read, 3
 .set __NR_write, 4
-.set __NR_exit, 93
+.set __NR_exit, 1
 
 .set stdin, 0
 .set stdout, 1

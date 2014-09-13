@@ -493,9 +493,14 @@ VARIABLE (LOOP-SP)
         LOOP
         2DROP
         ALIGN
+    ELSE
+        34 PARSE \ addr len
+        2DUP \ addr len addr len
+        HERE @ SWAP \ addr len src dst len
+        CMOVE \ addr len
+        NIP HERE @ \ len addr
+        SWAP
     THEN
-    \ TODO: Write the interpretation version, that copies to HERE without moving the HERE-pointer.
-    \ Or can it get away with using the keyboard input buffer?
 ;
 
 : ." IMMEDIATE ( -- )
@@ -748,9 +753,9 @@ VARIABLE (LOOP-SP)
 \ To do an fstat(2) we need a stat buffer. I'll use HERE@ for that.
 : FILE-SIZE ( fileid -- ud ior )
     HERE @ SWAP \ buf fileid
-    28 SYSCALL2 \ fstat(2)  ( ior )
-    \ By experimentation, it's the 12th word in that has the length.
-    HERE @ 11 CELLS + @ 0 \ ( ior size_lo size_hi )
+    108 SYSCALL2 \ fstat(2)  ( ior )   XXX The stat syscalls are a bit of a mess; see manual.
+    \ By experimentation, it's the 6th word in that has the length.
+    HERE @ 5 CELLS + @ 0 \ ( ior size_lo size_hi )
     ROT \ size_d ior
 ;
 
@@ -797,32 +802,13 @@ VARIABLE (LOOP-SP)
 ;
 
 
-\ .set __NR_exit, 1
-\ .set __NR_open, 5
-\ .set __NR_close, 6
-\ .set __NR_read, 3
-\ .set __NR_write, 4
-\ .set __NR_ftruncate 93
-\ .set __NR_unlink, 10
-\ .set __NR_lseek, 19
-\ .set __NR_fstat 28
 
-\ .set stdin, 0
-\ .set stdout, 1
-\ .set stderr, 2
-
-\ .set O_RDONLY, 0
-\ .set O_WRONLY, 1
-\ .set O_RDWR, 2
-\ .set O_CREAT, 64
-\ .set O_TRUNC, 512
-
-\ SEEK_SET = 0
-\ SEEK_CUR = 1
-\ SEEK_END = 2
+\ Turns a codeword/body pointer (ie. from ') into an xt, by walking the link list and
+\ returning the first address in it lower than the named value.
+: >XT ( addr -- xt ) LATEST @ BEGIN 2DUP < WHILE @ REPEAT NIP ;
 
 
-
+: DIE ( -- ) 0 1 SYSCALL1 ; \ exit(2)
 
 : WELCOME
     ." FORTH ARM" CR

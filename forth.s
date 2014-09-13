@@ -411,10 +411,23 @@ lsr r0, r1, r0
 push {r0}
 NEXT
 
+/* ARITHMETIC shift right */
+name_ASR:
+.word name_SHR
+.byte 7
+.ascii "ARSHIFT"
+.align
+ASR:
+.word code_ASR
+code_ASR:
+pop {r0, r1}
+asr r0, r1, r0
+push {r0}
+NEXT
 
 
 name_EQU:
-.word name_SHR
+.word name_ASR
 .byte 1
 .ascii "="
 .align
@@ -902,9 +915,22 @@ push {r0}
 NEXT
 
 
+name_EXTENDH:
+.word name_BITSWAPHALFWORD_SIGNED
+.byte 7
+.ascii "EXTENDH"
+.align
+EXTENDH:
+.word code_EXTENDH
+code_EXTENDH:
+pop {r0}
+sxth r0, r0
+push {r0}
+NEXT
+
 
 name_STATE:
-.word name_BITSWAPHALFWORD_SIGNED
+.word name_EXTENDH
 .byte 5
 .ascii "STATE"
 .align
@@ -1395,8 +1421,40 @@ NEXT
 
 
 
-name_EMIT:
+name_NOBUF:
 .word name_KEY
+.byte 7
+.ascii "(NOBUF)"
+.align
+NOBUF:
+.word code_NOBUF
+code_NOBUF:
+/* Calls tcsetattr() to disable ICANON and ECHO modes. */
+/* TODO: Capture SIGKILL and reset the terminal. */
+ldr r7, =var_HERE
+ldr r7, [r7]
+mov r1, r7
+mov r0, #stdin
+bl tcgetattr /* Returns nothing, but sets the structure. */
+/* Alternative implementation: cfmakeraw() */
+mov r0, r7
+bl cfmakeraw
+/* add r0, r7, #12  /* The value we want is 12 bytes in. */
+/* mvn r1, #10      /* This mask disables ICANON and ECHO. */
+
+/* ldr r2, [r0]
+/* and r2, r2, r1 /* Mask out the bits. */
+/* str r2, [r0]   /* And write it back. */
+
+mov r0, #stdin
+mov r1, #0      /* This is TCSANOW. */
+mov r2, r7      /* And the pointer to the structure. */
+bl tcsetattr /* Also returns nothing. */
+NEXT
+
+
+name_EMIT:
+.word name_NOBUF
 .byte 4
 .ascii "EMIT"
 .align

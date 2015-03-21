@@ -1,1 +1,0 @@
-Loads the forth.fs library code fine, but . prints 0 every time. I should compare my Forth library code with Jonesforth to look for missing 32-bit quirks.

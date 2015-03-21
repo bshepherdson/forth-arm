@@ -85,7 +85,7 @@ QUEUE THREAD-QUEUE
     DUP THREAD-RSP            ( thread *rsp )
     DUP @                     ( thread *rsp rsp )
     1 CELLS -                 ( thread *rsp rsp' )
-    ' THREAD-DIE OVER !       ( thread *rsp rsp' )
+    ' THREAD-DIE >BODY OVER ! ( thread *rsp rsp' )
     1 CELLS -                 ( thread *rsp rsp'' )
     R> OVER !                 ( thread *rsp rsp'' )
     2DUP SWAP !               ( thread *rsp rsp'' )
@@ -102,7 +102,7 @@ QUEUE THREAD-QUEUE
     ROT OVER !                ( *dsp dsp'' )
     SWAP !                    ( ) ( R: thread )
     R>                        ( thread )
-    THREAD-QUEUE THREAD-PUSH  ( )
+    THREAD-QUEUE QUEUE-PUSH  ( )
   ;
 
 

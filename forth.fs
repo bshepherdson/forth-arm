@@ -242,6 +242,9 @@
 \ ? fetches an addr and prints
 : ? ( addr -- ) @ . ;
 
+: .. DUP . ;
+: .H  BASE @ SWAP HEX . BASE ! ;
+: ..H BASE @ OVER HEX . BASE ! ;
 
 
 \ c a b WITHIN ->

@@ -42,7 +42,7 @@
         DROP
         2DUP !     ( new queue )
         2DUP CELL+ ! ( new queue )
-        DROP 0 !   ( ) \ Write 0 into the link pointer.
+        DROP 0 SWAP ! ( ) \ Write 0 into the link pointer.
     ELSE           ( new queue tail )
         ROT        ( queue tail new )
         2DUP SWAP ! ( queue tail new ) \ Write new value into the tail's link

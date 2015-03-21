@@ -1,6 +1,6 @@
 \ Forth ARM
 \ Copyright 2014 Braden Shepherdson
-\ Version 1
+\ Version 2
 
 \ This is a Forth system
 \ designed to run on ARMv6

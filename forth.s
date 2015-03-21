@@ -938,6 +938,7 @@ STATE:
 .word code_STATE
 code_STATE:
 ldr r0, =var_THREAD
+ldr r0, [r0]
 add r0, r0, #THREAD_STATE
 push {r0}
 NEXT
@@ -952,6 +953,7 @@ LATEST:
 .word code_LATEST
 code_LATEST:
 ldr r0, =var_THREAD
+ldr r0, [r0]
 add r0, r0, #THREAD_LATEST
 push {r0}
 NEXT
@@ -966,6 +968,7 @@ HERE:
 .word code_HERE
 code_HERE:
 ldr r0, =var_THREAD
+ldr r0, [r0]
 add r0, r0, #THREAD_HERE
 push {r0}
 NEXT
@@ -979,6 +982,7 @@ UNUSED:
 .word code_UNUSED
 code_UNUSED:
 ldr r0, =var_THREAD
+ldr r0, [r0]
 add r0, r0, #THREAD_HERE
 ldr r0, [r0]             /* Read the HERE value proper. */
 sub r0, sp, r0           /* Subtract it from SP. */
@@ -995,6 +999,7 @@ S0:
 .word code_S0
 code_S0:
 ldr r0, =var_THREAD
+ldr r0, [r0]
 add r0, r0, #THREAD_TOP
 ldr r0, [r0]
 sub r0, r0, #RETURN_STACK_SIZE
@@ -1011,6 +1016,7 @@ BASE:
 .word code_BASE
 code_BASE:
 ldr r0, =var_THREAD
+ldr r0, [r0]
 add r0, r0, #THREAD_BASE
 push {r0}
 NEXT
@@ -1038,6 +1044,7 @@ _R0:
 .word code_R0
 code_R0:
 ldr r0, =var_THREAD
+ldr r0, [r0]
 add r0, r0, #THREAD_TOP
 ldr r0, [r0]
 push {r0}
@@ -1385,6 +1392,7 @@ mov r0, #32
 bl _parse_word /* r0 = length, r1 = address */
 
 ldr r2, =var_THREAD
+ldr r2, [r2]
 add r2, r2, #THREAD_HERE
 ldr r2, [r2]      /* Using HERE area as temporary space. */
 push {r2}         /* That's always the return value from WORD, so push it now. */
@@ -1439,6 +1447,7 @@ code_NOBUF:
 /* Calls tcsetattr() to disable ICANON and ECHO modes. */
 /* TODO: Capture SIGKILL and reset the terminal. */
 ldr r7, =var_THREAD
+ldr r7, [r7]
 add r7, r7, #THREAD_HERE
 ldr r7, [r7]
 mov r1, r7
@@ -1512,6 +1521,7 @@ cmp r2, #0 /* length 0 is an error. returns 0, I guess. */
   bxeq lr
 
 ldr r4, =var_THREAD
+ldr r4, [r4]
 add r4, r4, #THREAD_BASE
 ldr r4, [r4]
 
@@ -1630,6 +1640,7 @@ Clobbers r0-r5
 _find:
 
 ldr r4, =var_THREAD
+ldr r4, [r4]
 add r4, r4, #THREAD_LATEST
 ldr r4, [r4]
 
@@ -1764,14 +1775,17 @@ pop {r0, r1} /* Length in r0, address in r1. */
 
 /* Store the link pointer. */
 ldr r3, =var_THREAD
+ldr r3, [r3]
 add r3, r3, #THREAD_HERE
 ldr r3, [r3]
 ldr r4, =var_THREAD
+ldr r4, [r4]
 add r4, r4, #THREAD_LATEST
 ldr r4, [r4]
 
 str r4, [r3] /* Write LATEST into the new link pointer at HERE */
 ldr r4, =var_THREAD
+ldr r4, [r4]
 add r4, r4, #THREAD_LATEST
 str r3, [r4] /* And write the new HERE into LATEST */
 add r3, r3, #4 /* Jump over the link pointer. */
@@ -1816,6 +1830,7 @@ str r5, [r3], #4 /* We write EXIT twice, so that it can be overwritten by DOES>.
 
 /* And then store this new HERE pointer. */
 ldr r1, =var_THREAD
+ldr r1, [r1]
 add r1, r1, #THREAD_HERE
 str r3, [r1]
 NEXT
@@ -1851,6 +1866,7 @@ NEXT
 
 _comma:
 ldr r3, =var_THREAD
+ldr r3, [r3]
 add r3, r3, #THREAD_HERE
 ldr r1, [r3] /* HERE value is in r1, address in r3 */
 str r0, [r1] /* Store the specified value at HERE */
@@ -1868,6 +1884,7 @@ LBRAC:
 .word code_LBRAC
 code_LBRAC:
 ldr r0, =var_THREAD
+ldr r0, [r0]
 add r0, r0, #THREAD_STATE
 mov r1, #0
 str r1, [r0] /* Update the STATE to 0 */
@@ -1882,6 +1899,7 @@ RBRAC:
 .word code_RBRAC
 code_RBRAC:
 ldr r0, =var_THREAD
+ldr r0, [r0]
 add r0, r0, #THREAD_STATE
 mov r1, #1
 str r1, [r0] /* Update the STATE to 1 */
@@ -1953,6 +1971,7 @@ IMMEDIATE:
 .word code_IMMEDIATE
 code_IMMEDIATE:
 ldr r3, =var_THREAD
+ldr r3, [r3]
 add r3, r3, #THREAD_LATEST
 ldr r3, [r3]
 add r3, r3, #4 /* Aim at length byte */
@@ -2250,6 +2269,7 @@ cmp r0, #0
 /* If not, we've got a valid word here to be parsed. */
 /* It's not a literal number (at least not yet) */
 ldr r2, =var_THREAD
+ldr r2, [r2]
 add r2, r2, #THREAD_interpret_is_lit
 mov r3, #0
 str r3, [r2]
@@ -2287,6 +2307,7 @@ _interpret_not_in_dict:
 /* Not in the dictionary, so assume it's a literal number. */
 /* At this point, the length is in r8 and the address in r9. */
 ldr r7, =var_THREAD
+ldr r7, [r7]
 add r7, r7, #THREAD_interpret_is_lit
 mov r6, #1
 str r6, [r7]
@@ -2307,6 +2328,7 @@ _interpret_compile_check:
 /* Are we compiling or executing? */
 
 ldr r4, =var_THREAD
+ldr r4, [r4]
 add r4, r4, #THREAD_STATE
 ldr r4, [r4]
 cmp r4, #0
@@ -2316,6 +2338,7 @@ cmp r4, #0
 bl _comma /* The word lives in r0, which is what _comma wants. */
 
 ldr r9, =var_THREAD
+ldr r9, [r9]
 add r9, r9, #THREAD_interpret_is_lit
 ldr r9, [r9]
 cmp r9, #0
@@ -2330,6 +2353,7 @@ _interpret_execute:
 /* Executing, run the word. */
 
 ldr r9, =var_THREAD
+ldr r9, [r9]
 add r9, r9, #THREAD_interpret_is_lit
 ldr r9, [r9]
 cmp r9, #0
@@ -2689,6 +2713,7 @@ LOOP_SP:
 .word code_LOOP_SP
 code_LOOP_SP:
 ldr r0, =var_THREAD
+ldr r0, [r0]
 add r1, r0, #THREAD_LOOP_SP
 push {r1}
 NEXT
@@ -2742,7 +2767,7 @@ NEXT
 
 
 name_EXECUTE:
-.word name_DEBUG
+.word name_FREE
 .byte 7
 .ascii "EXECUTE"
 .align
@@ -2856,6 +2881,7 @@ sub sp, r10, #RETURN_STACK_SIZE  /* The data stack is below it, by 1K words. */
 
 /* Set up the other variables. */
 ldr r1, =var_THREAD
+ldr r1, [r1]
 add r2, r1, #THREAD_LATEST
 ldr r3, =name_EXECUTE
 str r3, [r2]

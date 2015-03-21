@@ -415,11 +415,6 @@
 \ Parse the next word, find its xt, and compile a literal for it.
 : ['] IMMEDIATE WORD FIND DROP [COMPILE] LITERAL ;
 
-\ Create a small region of loop metadata.
-HERE @ 8 CELLS ALLOT
-VARIABLE (LOOP-SP)
-(LOOP-SP) ! \ (LOOP-SP) now holds the address of the lowest entry in the loop stack.
-
 : DO IMMEDIATE \ lim start --
   HERE @
   ' 2DUP ,
@@ -595,7 +590,7 @@ VARIABLE (LOOP-SP)
 : ENVIRONMENT? ( c-addr u -- false | i.x true )
     2DUP S" /COUNTED-STRING" STR= IF 2DROP 2000000000 TRUE EXIT THEN
     2DUP S" /HOLD" STR= IF 2DROP FALSE EXIT THEN
-    2DUP S" /PAD" STR= IF 2DROP 10000 TRUE EXIT THEN
+    2DUP S" /PAD" STR= IF 2DROP 256 TRUE EXIT THEN
     2DUP S" ADDRESS-UNIT-BITS" STR= IF 2DROP 32 TRUE EXIT THEN
     2DUP S" FLOORED" STR= IF 2DROP FALSE TRUE EXIT THEN \ TODO Check which division I do.
     2DUP S" MAX-CHAR" STR= IF 2DROP 127 TRUE EXIT THEN
@@ -680,6 +675,9 @@ VARIABLE (LOOP-SP)
 \ Creates a new word with the given name, which when executed deletes itself and everything
 \ after it.
 \ The hacky bit is that it has to work backwards from its data pointer to its link pointer.
+\ XXX: Thread safety danger here. This is fine if the MARKER is created
+\ in this thread. If it was created by a parent, then this will break
+\ everything horribly.
 : MARKER ( "<spaces>name" -- )
     CREATE
     LATEST @      \ The link pointer of the new word. Same as its xt.
@@ -690,7 +688,9 @@ VARIABLE (LOOP-SP)
     HERE ! \ Also set HERE equal to my link pointer.
 ;
 
-512 BUFFER: PAD
+\ PAD would be wasteful if every thread had its own large one.
+\ PAD currently just returns the value of HERE.
+: PAD HERE @ ;
 
 \ A value returns its payload.
 : VALUE ( x -- ) CREATE , DOES> @ ;
@@ -805,7 +805,9 @@ VARIABLE (LOOP-SP)
 
 \ Turns a codeword/body pointer (ie. from ') into an xt, by walking the link list and
 \ returning the first address in it lower than the named value.
-: >XT ( addr -- xt ) LATEST @ BEGIN 2DUP < WHILE @ REPEAT NIP ;
+\ XXX Thread-safety warning! Simple less-than is not safe, unless each
+\ thread is successively higher in memory.
+\ : >XT ( addr -- xt ) LATEST @ BEGIN 2DUP < WHILE @ REPEAT NIP ;
 
 
 : DIE ( -- ) 0 1 SYSCALL1 ; \ exit(2)

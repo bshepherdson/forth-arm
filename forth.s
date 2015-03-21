@@ -937,7 +937,8 @@ name_STATE:
 STATE:
 .word code_STATE
 code_STATE:
-ldr r0, =var_STATE
+ldr r0, =var_THREAD
+add r0, r0, #THREAD_STATE
 push {r0}
 NEXT
 
@@ -950,7 +951,8 @@ name_LATEST:
 LATEST:
 .word code_LATEST
 code_LATEST:
-ldr r0, =var_LATEST
+ldr r0, =var_THREAD
+add r0, r0, #THREAD_LATEST
 push {r0}
 NEXT
 
@@ -963,7 +965,8 @@ name_HERE:
 HERE:
 .word code_HERE
 code_HERE:
-ldr r0, =var_HERE
+ldr r0, =var_THREAD
+add r0, r0, #THREAD_HERE
 push {r0}
 NEXT
 
@@ -975,12 +978,10 @@ name_UNUSED:
 UNUSED:
 .word code_UNUSED
 code_UNUSED:
-ldr r0, =var_HERE_TOP
-ldr r0, [r0]
-ldr r1, =var_HERE
-ldr r1, [r1]
-
-sub r0, r0, r1
+ldr r0, =var_THREAD
+add r0, r0, #THREAD_HERE
+ldr r0, [r0]             /* Read the HERE value proper. */
+sub r0, sp, r0           /* Subtract it from SP. */
 push {r0}
 NEXT
 
@@ -993,7 +994,10 @@ name_S0:
 S0:
 .word code_S0
 code_S0:
-ldr r0, =var_S0
+ldr r0, =var_THREAD
+add r0, r0, #THREAD_TOP
+ldr r0, [r0]
+sub r0, r0, #RETURN_STACK_SIZE
 push {r0}
 NEXT
 
@@ -1006,7 +1010,8 @@ name_BASE:
 BASE:
 .word code_BASE
 code_BASE:
-ldr r0, =var_BASE
+ldr r0, =var_THREAD
+add r0, r0, #THREAD_BASE
 push {r0}
 NEXT
 
@@ -1020,7 +1025,7 @@ name_VERSION:
 VERSION:
 .word code_VERSION
 code_VERSION:
-mov r0, #1
+mov r0, #2
 push {r0}
 NEXT
 
@@ -1032,7 +1037,8 @@ name_R0:
 _R0:
 .word code_R0
 code_R0:
-ldr r0, =return_stack_top
+ldr r0, =var_THREAD
+add r0, r0, #THREAD_TOP
 ldr r0, [r0]
 push {r0}
 NEXT
@@ -1378,7 +1384,8 @@ code_WORD:
 mov r0, #32
 bl _parse_word /* r0 = length, r1 = address */
 
-ldr r2, =var_HERE
+ldr r2, =var_THREAD
+add r2, r2, #THREAD_HERE
 ldr r2, [r2]      /* Using HERE area as temporary space. */
 push {r2}         /* That's always the return value from WORD, so push it now. */
 strb r0, [r2]     /* Store the length byte into the beginning of the space. */
@@ -1431,7 +1438,8 @@ NOBUF:
 code_NOBUF:
 /* Calls tcsetattr() to disable ICANON and ECHO modes. */
 /* TODO: Capture SIGKILL and reset the terminal. */
-ldr r7, =var_HERE
+ldr r7, =var_THREAD
+add r7, r7, #THREAD_HERE
 ldr r7, [r7]
 mov r1, r7
 mov r0, #stdin
@@ -1503,7 +1511,8 @@ mov r1, r0
 cmp r2, #0 /* length 0 is an error. returns 0, I guess. */
   bxeq lr
 
-ldr r4, =var_BASE
+ldr r4, =var_THREAD
+add r4, r4, #THREAD_BASE
 ldr r4, [r4]
 
 /* Check if the first character is '-' */
@@ -1620,7 +1629,8 @@ Clobbers r0-r5
 */
 _find:
 
-ldr r4, =var_LATEST
+ldr r4, =var_THREAD
+add r4, r4, #THREAD_LATEST
 ldr r4, [r4]
 
 _find_loop:
@@ -1753,13 +1763,16 @@ code_CREATE_INT:
 pop {r0, r1} /* Length in r0, address in r1. */
 
 /* Store the link pointer. */
-ldr r3, =var_HERE
+ldr r3, =var_THREAD
+add r3, r3, #THREAD_HERE
 ldr r3, [r3]
-ldr r4, =var_LATEST
+ldr r4, =var_THREAD
+add r4, r4, #THREAD_LATEST
 ldr r4, [r4]
 
 str r4, [r3] /* Write LATEST into the new link pointer at HERE */
-ldr r4, =var_LATEST
+ldr r4, =var_THREAD
+add r4, r4, #THREAD_LATEST
 str r3, [r4] /* And write the new HERE into LATEST */
 add r3, r3, #4 /* Jump over the link pointer. */
 
@@ -1802,7 +1815,8 @@ str r5, [r3], #4 /* We write EXIT twice, so that it can be overwritten by DOES>.
 /* defined using : and :NONAME, since those overwrite the entire body. */
 
 /* And then store this new HERE pointer. */
-ldr r1, =var_HERE
+ldr r1, =var_THREAD
+add r1, r1, #THREAD_HERE
 str r3, [r1]
 NEXT
 
@@ -1836,7 +1850,8 @@ bl _comma
 NEXT
 
 _comma:
-ldr r3, =var_HERE
+ldr r3, =var_THREAD
+add r3, r3, #THREAD_HERE
 ldr r1, [r3] /* HERE value is in r1, address in r3 */
 str r0, [r1] /* Store the specified value at HERE */
 add r1, r1, #4 /* Update the HERE value */
@@ -1852,7 +1867,8 @@ name_LBRAC:
 LBRAC:
 .word code_LBRAC
 code_LBRAC:
-ldr r0, =var_STATE
+ldr r0, =var_THREAD
+add r0, r0, #THREAD_STATE
 mov r1, #0
 str r1, [r0] /* Update the STATE to 0 */
 NEXT
@@ -1865,7 +1881,8 @@ name_RBRAC:
 RBRAC:
 .word code_RBRAC
 code_RBRAC:
-ldr r0, =var_STATE
+ldr r0, =var_THREAD
+add r0, r0, #THREAD_STATE
 mov r1, #1
 str r1, [r0] /* Update the STATE to 1 */
 NEXT
@@ -1935,7 +1952,8 @@ name_IMMEDIATE:
 IMMEDIATE:
 .word code_IMMEDIATE
 code_IMMEDIATE:
-ldr r3, =var_LATEST
+ldr r3, =var_THREAD
+add r3, r3, #THREAD_LATEST
 ldr r3, [r3]
 add r3, r3, #4 /* Aim at length byte */
 ldrb r4, [r3]  /* Get that byte */
@@ -2231,7 +2249,8 @@ cmp r0, #0
 
 /* If not, we've got a valid word here to be parsed. */
 /* It's not a literal number (at least not yet) */
-ldr r2, =interpret_is_lit
+ldr r2, =var_THREAD
+add r2, r2, #THREAD_interpret_is_lit
 mov r3, #0
 str r3, [r2]
 
@@ -2267,7 +2286,8 @@ b _interpret_compile_check
 _interpret_not_in_dict:
 /* Not in the dictionary, so assume it's a literal number. */
 /* At this point, the length is in r8 and the address in r9. */
-ldr r7, =interpret_is_lit
+ldr r7, =var_THREAD
+add r7, r7, #THREAD_interpret_is_lit
 mov r6, #1
 str r6, [r7]
 
@@ -2286,7 +2306,8 @@ ldr r0, =LIT /* Set the word to LIT */
 _interpret_compile_check:
 /* Are we compiling or executing? */
 
-ldr r4, =var_STATE
+ldr r4, =var_THREAD
+add r4, r4, #THREAD_STATE
 ldr r4, [r4]
 cmp r4, #0
   beq _interpret_execute /* Executing, so jump there */
@@ -2294,7 +2315,8 @@ cmp r4, #0
 /* Compiling. Append the word to the current dictionary definition. */
 bl _comma /* The word lives in r0, which is what _comma wants. */
 
-ldr r9, =interpret_is_lit
+ldr r9, =var_THREAD
+add r9, r9, #THREAD_interpret_is_lit
 ldr r9, [r9]
 cmp r9, #0
   beq _interpret_end /* Not a literal, so done. */
@@ -2307,7 +2329,8 @@ b _interpret_end
 _interpret_execute:
 /* Executing, run the word. */
 
-ldr r9, =interpret_is_lit
+ldr r9, =var_THREAD
+add r9, r9, #THREAD_interpret_is_lit
 ldr r9, [r9]
 cmp r9, #0
   bgt _interpret_push_literal
@@ -2657,6 +2680,67 @@ _debug:
 mov r0, r1
 NEXT
 
+name_LOOP_SP:
+.word name_DEBUG
+.byte 9
+.ascii "(LOOP-SP)"
+.align
+LOOP_SP:
+.word code_LOOP_SP
+code_LOOP_SP:
+ldr r0, =var_THREAD
+add r1, r0, #THREAD_LOOP_SP
+push {r1}
+NEXT
+
+
+name_CURRENT_THREAD:
+.word name_LOOP_SP
+.byte 16
+.ascii "(CURRENT-THREAD)"
+.align
+CURRENT_THREAD:
+.word code_CURRENT_THREAD
+code_CURRENT_THREAD:
+ldr r0, =var_THREAD
+push {r0}
+NEXT
+
+
+name_ALLOCATE:
+.word name_CURRENT_THREAD
+.byte 8
+.ascii "ALLOCATE"
+.align
+ALLOCATE:
+.word code_ALLOCATE
+code_ALLOCATE:
+pop {r0}
+bl malloc
+/* We return an error if malloc returned NULL. */
+mov r1, #0
+cmp r0, r1
+  moveq r1, #37
+
+push {r0} /* address under */
+push {r1} /* ior on top. */
+NEXT
+
+name_FREE:
+.word name_ALLOCATE
+.byte 4
+.ascii "FREE"
+.align
+FREE:
+.word code_FREE
+code_FREE:
+pop {r0}
+bl free
+mov r0, #0 /* free(3) never fails, at least not detectably */
+push {r0}
+NEXT
+
+
 name_EXECUTE:
 .word name_DEBUG
 .byte 7
@@ -2757,20 +2841,40 @@ lsl r0, r0, #20
 mov r7, r0
 bl malloc
 /* r0 now contains the pointer to the memory */
-ldr r1, =var_HERE
+ldr r1, =var_THREAD  /* Store it in the thread pointer. */
 str r0, [r1]
-ldr r1, =var_HERE_TOP
-add r0, r0, r7 /* Add the pointer and length to get a top pointer. */
-str r0, [r1]   /* And store that in HERE_TOP. */
+add r1, r0, #THREAD_HERE  /* Offset the thread pointer by HERE's location */
+add r2, r0, #THREAD_SIZE  /* The actual HERE value is after the thread struct. */
+str r2, [r1]
+add r1, r0, #THREAD_TOP
+add r2, r0, r7 /* Add the pointer and length to get a top pointer. */
+str r2, [r1]   /* And store that in HERE_TOP. */
 
 /* Set up the stacks */
-ldr r0, =return_stack_top
-str sp, [r0]
-mov r10, sp
-sub sp, sp, #4096 /* Leave 1K words for the return stack */
+mov r10, r2    /* Return stack is at the top of the thread memory. */
+sub sp, r10, #RETURN_STACK_SIZE  /* The data stack is below it, by 1K words. */
 
-ldr r0, =var_S0
-str sp, [r0]
+/* Set up the other variables. */
+ldr r1, =var_THREAD
+add r2, r1, #THREAD_LATEST
+ldr r3, =name_EXECUTE
+str r3, [r2]
+
+mov r3, #0
+add r2, r1, #THREAD_STATE
+str r3, [r2]
+
+mov r3, #10
+add r2, r1, #THREAD_BASE
+str r3, [r2]
+
+add r3, r1, #THREAD_LOOP_STACK
+add r2, r1, #THREAD_LOOP_SP
+str r3, [r2]
+
+mov r3, #0
+add r2, r1, #THREAD_interpret_is_lit
+str r3, [r2]
 
 /* Load the input files, if applicable */
 bl _load_files
@@ -2802,17 +2906,6 @@ _load_files_error_message_len:
 debug_caret:
 .ascii "> "
 .align
-var_STATE:
-.word 0
-
-var_LATEST:
-.word name_EXECUTE
-
-var_S0:
-.word 0
-
-var_BASE:
-.word 10
 
 _key_buffer:
 .word 0
@@ -2843,12 +2936,20 @@ input_source:
 .equ PARSE_BUFFER_LEN, 496
 .equ INPUT_SOURCE_SIZE, 512
 
-interpret_is_lit:
-.word 0
+/* These need to stay in sync with thread.fs */
+.equ THREAD_LINK, 0
+.equ THREAD_HERE, 4
+.equ THREAD_LATEST, 8
+.equ THREAD_STATE, 12
+.equ THREAD_BASE, 16
+.equ THREAD_LOOP_SP, 20
+.equ THREAD_LOOP_STACK, 24 /* Current 4 cells of loop stack. */
+.equ THREAD_interpret_is_lit, 40
+.equ THREAD_TOP, 44
 
+.equ THREAD_SIZE, 64
 
-return_stack_top:
-.word 0
+.equ RETURN_STACK_SIZE, 4096
 
 current_fd:
 .word stdin
@@ -2858,9 +2959,9 @@ argc:
 argv:
 .word 0
 
-var_HERE:
-.word 0
-var_HERE_TOP:
+/* XXX Thread-safety: This assumes only one thread is running at once, */
+/* ie. single core. */
+var_THREAD:
 .word 0
 
 .end

@@ -19,7 +19,7 @@
 
 : THREAD-HEADER-SIZE ( -- u ) 16 CELLS ;
 
-65535 CONSTANT THREAD-SIZE
+65536 CONSTANT THREAD-SIZE
 
 \ The global queue of threads waiting to run.
 \ Global since it's created during the single-threaded load process.
@@ -51,15 +51,21 @@ QUEUE THREAD-QUEUE
 \ Slightly shaky because we're using free()d memory if the previous
 \ thread has died.
 : NEXT-THREAD ( -- )
+    ." Top of next thread" CR
     THREAD-QUEUE QUEUE-POP ( new-thread )
+    ." Popped thread " ..H CR
     \ Load that thread's DSP into the real one. That will magically put its
     \ RSP and current thread there too.
     \ This very gently abuses the calling thread's data stack, but it
     \ should be harmless.
     DUP 0= IF DIE THEN    \ Bail if the thread is NULL.
     THREAD-DSP @ DSP!     ( new-thread rsp )
-    RSP!                  ( new-thread )
-    (CURRENT-THREAD) !    ( )
+    ." DSP restored. found: " 2DUP .H .H CR
+    ." RSP about to restore. stacked: "
+    DUP @ .H DUP CELL+ @ .H CR
+    SWAP (CURRENT-THREAD) ! ( rsp )
+    ." About to set RSP to " ..H CR
+    RSP!
   ; \ This returns to whatever the newly loaded thread was doing before.
 
 \ Abandon the current thread, by popping it and not pushing it.
@@ -68,6 +74,8 @@ QUEUE THREAD-QUEUE
 \ Alternatively to free(), just make a pool of threads waiting to be used.
 : THREAD-DIE ( -- ) NEXT-THREAD ;
 
+: DEBUG-PRINT ' THREAD-DIE ." THREAD-DIE " .H CR ;
+DEBUG-PRINT
 
 \ Spawns a thread with a given size and sets it running the given XT.
 \ That requires calling (MAKE-THREAD) to get a base thread, and then setting its
@@ -79,15 +87,22 @@ QUEUE THREAD-QUEUE
 \ They're already in the right order for copying, it wouldn't be hard to copy
 \ deeper than the two values currently present.
 : MAKE-THREAD ( xt -- )
-    >BODY  >R                 ( R: xt-body )
+    ." Main thread RSP: " RSP@
+    DUP @ .H CELL+ DUP @ .H CELL+ @ .H CR
+
+    >R                        ( R: xt )
     THREAD-SIZE (MAKE-THREAD) ( thread )
+    ." Made thread at " ..H CR
     \ Now load that thread's RSP and store the xt's body.
     DUP THREAD-RSP            ( thread *rsp )
     DUP @                     ( thread *rsp rsp )
+    ." Make-thread RSP " 2DUP .H SPACE ." at " .H CR
     1 CELLS -                 ( thread *rsp rsp' )
-    ' THREAD-DIE >BODY OVER ! ( thread *rsp rsp' )
+    ' THREAD-DIE OVER !       ( thread *rsp rsp' )
+    ." Make-thread RSP " 2DUP .H SPACE ." at " .H CR
     1 CELLS -                 ( thread *rsp rsp'' )
-    R> OVER !                 ( thread *rsp rsp'' )
+    ." Make-thread RSP " 2DUP .H SPACE ." at " .H CR
+    R> ." Next RSP " ..H OVER !                 ( thread *rsp rsp'' )
     2DUP SWAP !               ( thread *rsp rsp'' )
     NIP                       ( thread rsp'' )
     \ Now the thread's return stack is ready.

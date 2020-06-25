@@ -1,5 +1,7 @@
 # ForthARM
 
+**Superceded:** My [FCC project](https://github.com/shepheb/fcc) is a much more complete, robust, standard and optimized Forth for ARMv7 32-bit and x86_64.
+
 This is a Forth implementation for ARM processors. It was written from scratch and as a hobby project. It is currently not in a working state.
 
 Feel free to use it (BSD3 license), but expect bugs.
